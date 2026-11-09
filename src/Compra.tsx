@@ -81,6 +81,7 @@ export function PagoPage() {
   const pedido = useApi(useCallback((signal: AbortSignal) => compras.pedido(Number(id), signal), [id]))
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
+  const [enlacePago, setEnlacePago] = useState<string | null>(null)
   async function operar(pagar: boolean) {
     if (!pedido.data) return
     setError('')
@@ -88,10 +89,11 @@ export function PagoPage() {
     try {
       if (pagar) {
         const intento = await compras.pagar(pedido.data.id)
-        if (intento.checkoutUrl) window.location.assign(intento.checkoutUrl)
+        if (intento.checkoutUrl) setEnlacePago(intento.checkoutUrl)
         else pedido.recargar()
       } else {
         await compras.sincronizar(pedido.data.id)
+        setEnlacePago(null)
         pedido.recargar()
       }
     } catch (err) { setError(mensajeError(err)) }
@@ -106,8 +108,11 @@ export function PagoPage() {
       <Referencia id={pedido.data.cartId} />
       <p>Total: Q {pedido.data.total}</p>
       <p>Estado: {pedido.data.status}</p>
+      {["PAID", "IN_TRANSIT", "DELIVERED", "COMPLETED"].includes(pedido.data.status) && <p role="status">Pago confirmado</p>}
       {pedido.data.status === 'PENDING' && <div className="flex flex-wrap gap-3">
-        <button disabled={ocupado} onClick={() => operar(true)}>Pagar con MockPay</button>
+        {enlacePago
+          ? <a href={enlacePago} target="_blank" rel="noreferrer">Abrir MockPay</a>
+          : <button disabled={ocupado} onClick={() => operar(true)}>Pagar con MockPay</button>}
         <button disabled={ocupado} onClick={() => operar(false)}>Verificar pago</button>
       </div>}
     </>}
