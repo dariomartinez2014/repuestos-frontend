@@ -5,5 +5,11 @@ export interface Producto { id: number; sku: string; name: string; description: 
 export interface ProductoInterno extends Producto { acquisitionCost: string }
 export interface Pagina<T> { data: T[]; total: number; page: number; limit: number }
 export interface Carrito { id: number; status: string; items: { productId: number; quantity: number; product: Producto }[] }
-export interface Pedido { id: number; cartId: number; total: string; status: string }
+export interface Pedido {
+  id: number
+  cartId: number
+  total: string
+  status: string
+  items: { id: number; productName: string; quantity: number; unitPrice: string }[]
+}
 export interface Direccion { id: number; recipientName: string; phone: string; addressLine: string }

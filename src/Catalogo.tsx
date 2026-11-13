@@ -7,14 +7,14 @@ import { compras } from './services/compras'
 import { useAuthStore } from './store'
 import type { Categoria, ProductoInterno } from './types'
 
-export function Catalogo({ interno = false }: { interno?: boolean }) {
+export function Catalogo({ interno = false, search = '' }: { interno?: boolean; search?: string }) {
   const [categoria, setCategoria] = useState('')
   const [pagina, setPagina] = useState(1)
   const [edicion, setEdicion] = useState<ProductoInterno>()
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
   const categorias = useApi(productos.categorias)
-  const pedir = useCallback((signal: AbortSignal) => productos.listar<ProductoInterno>(interno, pagina, Number(categoria) || undefined, signal), [interno, pagina, categoria])
+  const pedir = useCallback((signal: AbortSignal) => productos.listar<ProductoInterno>(interno, pagina, Number(categoria) || undefined, signal, search || undefined), [interno, pagina, categoria, search])
   const lista = useApi(pedir)
   const sesion = useAuthStore(s => s.sesion)
   const navegar = useNavigate()
@@ -45,7 +45,11 @@ export function Catalogo({ interno = false }: { interno?: boolean }) {
   }
 
   return <section className="space-y-5">
-    <h1 className="text-2xl font-bold">{interno ? 'Inventario' : 'Catálogo de repuestos'}</h1>
+    {/* PORTADA: p-6 cambia el espacio interior y text-3xl el tamaño del título. */}
+    <div className="rounded-xl bg-white p-6">
+      <h1 className="text-3xl font-bold">{interno ? 'Inventario' : 'Catálogo de repuestos'}</h1>
+      {search && <p className="mt-2 text-slate-600">Resultados para «{search}»</p>}
+    </div>
     {categorias.error && <p role="alert">{categorias.error} <button onClick={categorias.recargar}>Reintentar categorías</button></p>}
     <label className="max-w-xs">Categoría<select value={categoria} onChange={e => { setCategoria(e.target.value); setPagina(1) }}>
       <option value="">Todas</option>{categorias.data?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -54,11 +58,17 @@ export function Catalogo({ interno = false }: { interno?: boolean }) {
     {error && <p role="alert">{error}</p>}
     {lista.cargando && <p role="status">Cargando productos…</p>}
     {lista.error && <p role="alert">{lista.error} <button onClick={lista.recargar}>Reintentar</button></p>}
-    {lista.data?.data.length === 0 && <p>No hay productos para esta categoría.</p>}
+    {lista.data?.data.length === 0 && <p>No hay productos que coincidan con la búsqueda y la categoría.</p>}
+    {/* CUADRÍCULA: gap-4 separa tarjetas; lg:grid-cols-3 define tres columnas en escritorio. */}
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {lista.data?.data.map(p => <article key={p.id} className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-        <p>{p.sku} · {p.category.name}</p><h2 className="font-bold">{p.name}</h2><p>{p.description}</p>
-        <p>Q {p.salePrice} · {p.stock} disponibles</p>
+      {lista.data?.data.map(p => <article key={p.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-sm text-slate-600">{p.sku} · {p.category.name}</p>
+        <h2 className="text-lg font-bold">{p.name}</h2>
+        {p.description && <p className="text-sm text-slate-600">{p.description}</p>}
+        <p className="mt-auto pt-2 text-2xl font-bold">Q {p.salePrice}</p>
+        <p className={p.stock > 0 ? 'text-sm text-emerald-700' : 'text-sm text-rose-700'}>
+          {p.stock > 0 ? `${p.stock} disponibles` : 'Agotado'}
+        </p>
         {interno ? <><p>Costo Q {p.acquisitionCost} · {p.active ? 'Activo' : 'Retirado'}</p><div className="flex gap-2"><button onClick={() => setEdicion(p)}>Editar</button><button disabled={ocupado || !p.active} onClick={() => retirar(p.id)}>Retirar</button></div></>
           : (!sesion || sesion.usuario.role === 'CUSTOMER') && <button disabled={ocupado || p.stock < 1} onClick={() => agregar(p.id)}>{p.stock < 1 ? 'Sin stock' : 'Agregar al carrito'}</button>}
       </article>)}

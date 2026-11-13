@@ -5,7 +5,7 @@ import { mensajeError } from './lib/errores'
 import { compras } from './services/compras'
 import { useAuthStore } from './store'
 
-function Referencia({ id }: { id: number }) {
+export function Referencia({ id }: { id: number }) {
   return <p className="font-semibold">Código de compra: C-{id}</p>
 }
 
@@ -63,6 +63,7 @@ export function CarritoPage() {
       {direcciones.error && <p role="alert">{direcciones.error} <button onClick={direcciones.recargar}>Reintentar</button></p>}
       <form onSubmit={confirmar} className="max-w-lg space-y-3">
         <label>Dirección de entrega<select name="direccion" required defaultValue=""><option value="">Selecciona</option>{direcciones.data?.map(d => <option key={d.id} value={d.id}>{d.addressLine}</option>)}</select></label>
+        {/* ESTILO LOCAL: agrega className="bg-emerald-700 px-6 py-3" para personalizar solo este botón. */}
         <button disabled={ocupado || !direcciones.data?.length}>Continuar al pago</button>
       </form>
       <form onSubmit={agregarDireccion} className="max-w-lg space-y-3 rounded bg-white p-4">

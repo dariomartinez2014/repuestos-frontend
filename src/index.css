@@ -1,8 +1,13 @@
 @import "tailwindcss";
 @layer base {
-  body { @apply bg-slate-50 text-slate-900; }
+  body { @apply bg-slate-100 text-slate-900; }
   input, select { @apply block w-full rounded border border-slate-300 bg-white px-3 py-2; }
-  button { @apply rounded bg-indigo-700 px-4 py-2 text-white disabled:opacity-50; }
+  /* ESTILO GENERAL: estas clases se aplican a todos los botones. */
+  /* COLOR: bg-amber-300 pinta el fondo; hover:bg-amber-400 lo oscurece al pasar el mouse. */
+  /* TAMAÑO: px-4 da espacio a los lados y py-2 arriba y abajo. */
+  /* ESTADOS: rounded redondea las esquinas y disabled:opacity-50 atenúa el botón deshabilitado. */
+  button { @apply rounded-full bg-amber-300 px-4 py-2 font-medium text-slate-950 enabled:hover:bg-amber-400 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50; }
   a { @apply text-indigo-700 underline; }
+  header a { @apply text-white; }
   label { @apply block text-sm font-medium; }
 }
