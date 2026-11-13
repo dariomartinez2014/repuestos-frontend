@@ -15,7 +15,7 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
   const [error, setError] = useState('')
   const categorias = useApi(productos.categorias)
   const pedir = useCallback((signal: AbortSignal) => productos.listar<ProductoInterno>(interno, pagina, Number(categoria) || undefined, signal, search || undefined), [interno, pagina, categoria, search])
-  const lista = useApi(pedir)
+  const lista = useApi(pedir, true)
   const sesion = useAuthStore(s => s.sesion)
   const navegar = useNavigate()
 

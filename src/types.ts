@@ -10,6 +10,8 @@ export interface Pedido {
   cartId: number
   total: string
   status: string
+  deliveryAddress?: string | null
+  deliveryReference?: string | null
   items: { id: number; productName: string; quantity: number; unitPrice: string }[]
 }
 export interface Direccion { id: number; recipientName: string; phone: string; addressLine: string }

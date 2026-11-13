@@ -2,7 +2,12 @@ import { Link, Navigate, Outlet, Route, Routes, useNavigate, useSearchParams } f
 import { AuthForm } from './AuthForm'
 import { Catalogo } from './Catalogo'
 import { CarritoPage, PagoPage } from './Compra'
-import { CajaPage, PedidosPage, VentaPage } from './Operacion'
+import { lazy, Suspense } from 'react'
+
+// Las pantallas de operación se descargan cuando el usuario entra a una de ellas.
+const CajaPage = lazy(() => import('./Operacion').then(modulo => ({ default: modulo.CajaPage })))
+const PedidosPage = lazy(() => import('./Operacion').then(modulo => ({ default: modulo.PedidosPage })))
+const VentaPage = lazy(() => import('./Operacion').then(modulo => ({ default: modulo.VentaPage })))
 import { useAuthStore } from './store'
 import type { Role } from './types'
 
@@ -44,7 +49,7 @@ function Layout() {
         <div className="mx-auto max-w-6xl"><Link to="/">Todos los repuestos</Link></div>
       </div>
     </header>
-    <main className="mx-auto max-w-6xl px-5 py-8"><Outlet /></main>
+    <main className="mx-auto max-w-6xl px-5 py-8"><Suspense fallback={<p role="status">Cargando pantalla…</p>}><Outlet /></Suspense></main>
   </>
 }
 function Panel() {

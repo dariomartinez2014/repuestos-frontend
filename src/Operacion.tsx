@@ -1,4 +1,4 @@
-import { useCallback, useState, type FormEvent } from 'react'
+import { useCallback, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useApi } from './hooks/useApi'
 import { mensajeError } from './lib/errores'
@@ -21,6 +21,7 @@ function EstadoCarga({ cargando, error, recargar }: { cargando: boolean; error: 
   return error && <p role="alert">{error} <button onClick={recargar}>Reintentar</button></p>
 }
 
+// Comparte la espera y el mensaje de error de las operaciones que escriben en la API.
 function useOperacion() {
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
@@ -48,7 +49,10 @@ export function CajaPage() {
     const monto = Number(new FormData(event.currentTarget).get('monto'))
     if (id && !window.confirm('¿Cerrar esta caja?')) return
     void ejecutar(async () => {
-      if (id) await operacion.cerrar(id, monto)
+      if (id) {
+        await operacion.cerrar(id, monto)
+        setSeleccion(id)
+      }
       else await operacion.abrir(monto)
       cajas.recargar()
       corte.recargar()
@@ -81,18 +85,26 @@ export function VentaPage({ social = false }: { social?: boolean }) {
   const cajas = useApi(operacion.cajas)
   const [pagina, setPagina] = useState(1)
   const pedirProductos = useCallback((signal: AbortSignal) => productos.listar<Producto>(false, pagina, undefined, signal), [pagina])
-  const catalogo = useApi(pedirProductos)
-  const [carrito, setCarrito] = useState<number | null>(null)
+  const catalogo = useApi(pedirProductos, true)
+  // Cada canal conserva su carrito al navegar por el panel.
+  const carrito = useAuthStore(s => s.carritosStaff[social ? 'SOCIAL' : 'POS'])
+  const guardarCarritoStaff = useAuthStore(s => s.guardarCarritoStaff)
+  const canal = social ? 'SOCIAL' : 'POS'
   const pedirCarrito = useCallback((signal: AbortSignal) => carrito ? compras.carrito(carrito, signal) : Promise.resolve(null), [carrito])
   const venta = useApi(pedirCarrito)
   const [pedido, setPedido] = useState<Pedido>()
   const { ocupado, error, ejecutar } = useOperacion()
   const abierta = cajas.data?.find(caja => !caja.closedAt)
 
+  // El total es orientativo. La API confirma el precio y el stock al cobrar.
+  const total = useMemo(() => (venta.data?.items ?? []).reduce(
+    (suma, item) => suma + Math.round(Number(item.product.salePrice) * 100) * item.quantity, 0,
+  ) / 100, [venta.data])
+
   function agregar(producto: Producto) {
     void ejecutar(async () => {
-      const id = carrito ?? (await compras.crear(social ? 'SOCIAL' : 'POS')).id
-      setCarrito(id)
+      const id = carrito ?? (await compras.crear(canal)).id
+      guardarCarritoStaff(canal, id)
       const cantidad = venta.data?.items.find(item => item.productId === producto.id)?.quantity ?? 0
       await compras.agregar(id, producto.id, cantidad + 1)
       venta.recargar()
@@ -110,7 +122,7 @@ export function VentaPage({ social = false }: { social?: boolean }) {
       }) : abierta && await compras.confirmarPos(carrito, abierta.id, String(campos.get('metodo')) as Metodo)
       if (!resultado) return
       setPedido(resultado)
-      setCarrito(null)
+      guardarCarritoStaff(canal, null)
       catalogo.recargar()
     })
   }
@@ -149,12 +161,13 @@ export function VentaPage({ social = false }: { social?: boolean }) {
       </div>)}
       {!!venta.data?.items.length && <form onSubmit={cobrar} className="max-w-sm space-y-3">
         <Referencia id={venta.data.id} />
+        <p className="font-semibold">Total a cobrar: Q {total.toFixed(2)}</p>
         {social ? <>
           <label>Destinatario<input name="destinatario" required minLength={2} maxLength={150} /></label>
           <label>Teléfono<input name="telefono" type="tel" required minLength={5} maxLength={30} /></label>
           <label>Dirección de entrega<input name="direccion" required minLength={5} maxLength={500} /></label>
         </> : <Metodos />}
-        <button disabled={ocupado || (!social && !abierta)}>{social ? 'Registrar pedido' : 'Confirmar cobro'}</button>
+        <button disabled={ocupado || (!social && !abierta)}>{ocupado ? 'Procesando…' : social ? 'Registrar pedido' : 'Confirmar cobro'}</button>
       </form>}
     </>}
   </section>
@@ -169,7 +182,9 @@ export function PedidosPage() {
   const rol = useAuthStore(s => s.sesion?.usuario.role)
   const [pagina, setPagina] = useState(1)
   const [estado, setEstado] = useState('')
-  const pedir = useCallback((signal: AbortSignal) => operacion.pedidos(pagina, estado, signal), [pagina, estado])
+  // La fecha se envía a la API, que consulta el día comercial de Guatemala.
+  const [fecha, setFecha] = useState('')
+  const pedir = useCallback((signal: AbortSignal) => operacion.pedidos(pagina, estado, fecha, signal), [pagina, estado, fecha])
   const pedidos = useApi(pedir)
   const { ocupado, error, ejecutar } = useOperacion()
   function cambiar(accion: () => Promise<unknown>) {
@@ -182,12 +197,15 @@ export function PedidosPage() {
       <option value="">Todos</option>
       {Object.entries(estados).map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
     </select></label>
+    <label className="max-w-sm">Fecha<input type="date" value={fecha} onChange={event => { setFecha(event.target.value); setPagina(1) }} /></label>
     <EstadoCarga {...pedidos} />
     {error && <p role="alert">{error}</p>}
     {pedidos.data?.data.length === 0 && <p>No hay pedidos para este filtro.</p>}
     {pedidos.data?.data.map(pedido => <article key={pedido.id} className="space-y-3 rounded-xl bg-white p-5">
       <Referencia id={pedido.cartId} />
       <p>{estados[pedido.status] ?? pedido.status} · Q {pedido.total}</p>
+      {/* Los datos de entrega solo se muestran al personal autorizado. */}
+      {rol === 'ADMIN' && pedido.deliveryAddress && <p>Entrega: {pedido.deliveryAddress}{pedido.deliveryReference && ' · ' + pedido.deliveryReference}</p>}
       <ul>{pedido.items.map(item => <li key={item.id}>{item.productName} · {item.quantity} × Q {item.unitPrice}</li>)}</ul>
       {rol === 'CUSTOMER' && pedido.status !== 'CANCELLED' && <Link to={'/pago/' + pedido.id}>Ver pago</Link>}
       {pedido.status === 'PENDING' && rol !== 'CASHIER' && <div className="flex flex-wrap items-end gap-3">
