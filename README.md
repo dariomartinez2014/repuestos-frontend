@@ -1,5 +1,7 @@
 # Repuestos · POS y tienda web
 
+[Abrir la tienda en Vercel](https://repuestos-frontend-nine.vercel.app)
+
 En PowerShell, abre la carpeta del frontend y ejecuta:
 
 ```powershell
@@ -10,6 +12,14 @@ npm run dev
 
 VITE_API_URL debe apuntar al backend con el prefijo /api. Para compilar, ejecuta npm run build.
 
-Para la demo, usa cuentas de prueba de Administrador, Cajero y Cliente web de la API. El Administrador crea el Cajero desde Personal y el Cliente se registra desde la tienda.
+El seed del backend define estas cuentas de demostración:
 
-La URL de Vercel y la verificación de los flujos con las cuentas de prueba están pendientes.
+| Rol | Correo |
+| --- | --- |
+| Administrador | `admin@repuestos.demo` |
+| Cajero | `cajero@repuestos.demo` |
+| Cliente web | `cliente@repuestos.demo` |
+
+Para la demo local, copia la contraseña desde `.local/ACCESOS-DEMO.md` en el repositorio del backend. El script `npm run local:start` del backend indica dónde encontrar ese archivo. La disponibilidad de estas cuentas en Render está pendiente de verificar.
+
+Para conectar el frontend a esa demo local, pon `VITE_API_URL=http://localhost:3000/api` en `.env` y reinicia Vite.
