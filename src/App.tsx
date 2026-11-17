@@ -1,5 +1,6 @@
-import { Link, Navigate, Outlet, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, Outlet, Route, Routes, useSearchParams } from 'react-router-dom'
 import { AuthForm } from './AuthForm'
+import { BuscadorCatalogo } from './BuscadorCatalogo'
 import { Catalogo } from './Catalogo'
 import { CarritoPage, PagoPage } from './Compra'
 import { lazy, Suspense } from 'react'
@@ -27,21 +28,12 @@ function Visitante() {
 function Layout() {
   const sesion = useAuthStore(s => s.sesion)
   const salir = useAuthStore(s => s.salir)
-  const [params] = useSearchParams()
-  const navegar = useNavigate()
   return <>
     {/* CABECERA: los colores bg-tienda-* se editan en la paleta de index.css. */}
     <header className="bg-tienda-cabecera text-white">
       <nav className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6" aria-label="Navegación principal">
         <Link to="/" className="text-2xl font-extrabold tracking-tight text-white no-underline">Repuestos<span className="text-tienda-accion">.</span></Link>
-        <form role="search" className="order-last flex w-full min-w-0 overflow-hidden rounded-lg bg-tienda-tarjeta focus-within:ring-2 focus-within:ring-tienda-accion lg:order-none lg:w-auto lg:flex-1" onSubmit={event => {
-          event.preventDefault()
-          const search = String(new FormData(event.currentTarget).get('search') ?? '').trim()
-          navegar(search ? '/?' + new URLSearchParams({ search }) : '/')
-        }}>
-          <input key={params.get('search') ?? ''} name="search" type="search" aria-label="Buscar repuestos" defaultValue={params.get('search') ?? ''} placeholder="Busca por nombre o código" className="min-w-0 flex-1 rounded-none border-0 px-4 text-tienda-texto focus-visible:outline-none" />
-          <button type="submit" className="shrink-0 rounded-none px-5 focus-visible:-outline-offset-4">Buscar</button>
-        </form>
+        <BuscadorCatalogo />
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           {sesion?.usuario.role === 'CUSTOMER' && <Link className="font-semibold no-underline hover:underline" to="/carrito">Carrito</Link>}
           {sesion && <Link to="/pedidos">Pedidos</Link>}
@@ -68,6 +60,7 @@ function Panel() {
     <p>Bienvenido, {usuario?.name}.</p>
     <div className="flex flex-wrap gap-4">
       <Link to="/panel/venta">Venta de mostrador</Link>
+      <Link to="/panel/ventas">Historial de ventas</Link>
       {usuario?.role === 'ADMIN' && <>
         <Link to="/panel/caja">Administrar caja</Link>
         <Link to="/panel/social">Pedido por redes sociales</Link>
@@ -80,7 +73,7 @@ function Panel() {
 function Tienda() {
   const [params] = useSearchParams()
   const search = params.get('search')?.trim().slice(0, 100) ?? ''
-  return <Catalogo key={search} search={search} />
+  return <Catalogo search={search} />
 }
 export default function App() {
   return <Routes><Route element={<Layout />}>
@@ -100,9 +93,10 @@ export default function App() {
     <Route element={<Protegida roles={['ADMIN', 'CASHIER']} />}>
       <Route path="panel" element={<Panel />} />
       <Route path="panel/venta" element={<VentaPage />} />
+      <Route path="panel/ventas" element={<PedidosPage key="ventas" soloVentas />} />
     </Route>
     <Route element={<Protegida roles={['ADMIN', 'CASHIER', 'CUSTOMER']} />}>
-      <Route path="pedidos" element={<PedidosPage />} />
+      <Route path="pedidos" element={<PedidosPage key="pedidos" />} />
     </Route>
     <Route element={<Protegida roles={['ADMIN']} />}>
       <Route path="panel/caja" element={<CajaPage />} />

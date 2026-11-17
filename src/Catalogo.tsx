@@ -1,5 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { CategoriaForm } from './CategoriaForm'
 import { FotoProducto } from './FotoProducto'
 import { useApi } from './hooks/useApi'
 import { mensajeError } from './lib/errores'
@@ -12,7 +13,10 @@ const formatoPrecio = new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2,
 
 export function Catalogo({ interno = false, search = '' }: { interno?: boolean; search?: string }) {
   const [categoria, setCategoria] = useState('')
-  const [pagina, setPagina] = useState(1)
+  // Al cambiar el texto, se busca desde la página 1 y se conserva la categoría.
+  const [paginacion, setPaginacion] = useState({ search, pagina: 1 })
+  const pagina = paginacion.search === search ? paginacion.pagina : 1
+  const setPagina = (numero: number) => setPaginacion({ search, pagina: numero })
   const [edicion, setEdicion] = useState<ProductoInterno>()
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
@@ -85,7 +89,14 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
       </label>
     </div>
     {categorias.error && <p role="alert">{categorias.error} <button onClick={categorias.recargar}>Reintentar categorías</button></p>}
-    {interno && <ProductoForm key={edicion?.id ?? 'nuevo'} producto={edicion} categorias={categorias.data ?? []} alGuardar={() => { setEdicion(undefined); lista.recargar() }} cancelar={() => setEdicion(undefined)} />}
+    {interno && <CategoriaForm alCrear={categorias.recargar} />}
+    {interno && <ProductoForm
+      key={edicion?.id ?? 'nuevo'}
+      producto={edicion}
+      categorias={categorias.data ?? []}
+      alGuardar={() => { setEdicion(undefined); lista.recargar() }}
+      cancelar={() => setEdicion(undefined)}
+    />}
     {error && <p role="alert">{error}</p>}
     {lista.cargando && <p role="status">Cargando productos…</p>}
     {lista.error && <p role="alert">{lista.error} <button onClick={lista.recargar}>Reintentar</button></p>}
@@ -93,7 +104,7 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
     {/* CUADRÍCULA: gap-5 separa tarjetas y lg:grid-cols-3 define tres columnas en escritorio. */}
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {lista.data?.data.map(p => <article key={p.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-tienda-borde bg-tienda-tarjeta p-5 shadow-sm transition-shadow hover:shadow-md">
-        {!interno && <FotoProducto producto={p} />}
+        <FotoProducto producto={p} />
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-tienda-secundario">
           <span className="font-mono font-semibold">{p.sku}</span>
           <span>{p.category.name}</span>
@@ -132,7 +143,12 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
   </section>
 }
 
-function ProductoForm({ producto, categorias, alGuardar, cancelar }: { producto?: ProductoInterno; categorias: Categoria[]; alGuardar: () => void; cancelar: () => void }) {
+function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
+  producto?: ProductoInterno
+  categorias: Categoria[]
+  alGuardar: () => void
+  cancelar: () => void
+}) {
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
   async function guardar(event: FormEvent<HTMLFormElement>) {
@@ -143,9 +159,15 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: { producto?
       categoryId: Number(f.get('categoryId')), sku: String(f.get('sku')).trim(), name: String(f.get('name')).trim(),
       description: String(f.get('description')).trim(), acquisitionCost: Number(f.get('cost')), salePrice: Number(f.get('price')),
     }
+    // El selector admite varios archivos y el backend vuelve a validar cada uno.
+    const imagenes = f.getAll('imagenes').filter((archivo): archivo is File => archivo instanceof File && archivo.size > 0)
+    if (imagenes.length > 5 || imagenes.some(imagen => imagen.size > 5 * 1024 * 1024)) {
+      setError('Elige hasta 5 imágenes de 5 MB como máximo cada una.')
+      return
+    }
     setError('')
     setGuardando(true)
-    try { await productos.guardar(datos, producto?.id); form.reset(); alGuardar() }
+    try { await productos.guardar(datos, producto?.id, imagenes); form.reset(); alGuardar() }
     catch (err) { setError(mensajeError(err)) }
     finally { setGuardando(false) }
   }
@@ -168,7 +190,11 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: { producto?
       <label>Descripción<input name="description" maxLength={2000} defaultValue={producto?.description ?? ''} /></label>
       <label>Costo<input name="cost" type="number" min="0" step=".01" required defaultValue={producto?.acquisitionCost} /></label>
       <label>Precio<input name="price" type="number" min=".01" step=".01" required defaultValue={producto?.salePrice} /></label>
-      <button disabled={guardando || !categorias.length}>Guardar producto</button>
+      {!producto && <label className="sm:col-span-2">Imágenes del producto
+        <input name="imagenes" type="file" accept="image/jpeg,image/png,image/webp" multiple />
+        <span className="text-xs text-tienda-secundario">Hasta 5 imágenes JPG, PNG o WebP. Máximo 5 MB por imagen.</span>
+      </label>}
+      <button disabled={guardando || !categorias.length}>{guardando ? 'Guardando…' : 'Guardar producto'}</button>
       {producto && <button type="button" onClick={cancelar}>Cancelar edición</button>}
     </form>
     {producto && <form onSubmit={ajustar} className="grid items-end gap-3 sm:grid-cols-3">

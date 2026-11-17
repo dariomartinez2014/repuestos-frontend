@@ -20,8 +20,8 @@ export const operacion = {
     return (await api.get<Corte>(`/cash-sessions/${id}`, { signal })).data
   },
   cerrar: (id: number, countedAmount: number) => api.post(`/cash-sessions/${id}/close`, { countedAmount }),
-  async pedidos(page: number, status: string, date: string, signal: AbortSignal) {
-    return (await api.get<Pagina<Pedido>>('/orders', { params: { page, status: status || undefined, date: date || undefined }, signal })).data
+  async pedidos(page: number, status: string, date: string, signal: AbortSignal, channel?: 'POS') {
+    return (await api.get<Pagina<Pedido>>('/orders', { params: { page, channel, status: status || undefined, date: date || undefined }, signal })).data
   },
   cancelar: (id: number) => api.post(`/orders/${id}/cancel`),
   estado: (id: number, status: 'IN_TRANSIT' | 'DELIVERED') => api.patch(`/orders/${id}/status`, { status }),

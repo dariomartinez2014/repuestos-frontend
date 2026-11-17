@@ -197,13 +197,19 @@ const estados: Record<string, string> = {
   CANCELLED: 'Cancelado', COMPLETED: 'Completado',
 }
 
-export function PedidosPage() {
+const fechaVenta = new Intl.DateTimeFormat('es-GT', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Guatemala' })
+const formasPago = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia / QR' }
+
+export function PedidosPage({ soloVentas = false }: { soloVentas?: boolean }) {
   const rol = useAuthStore(s => s.sesion?.usuario.role)
   const [pagina, setPagina] = useState(1)
   const [estado, setEstado] = useState('')
   // La fecha se envía a la API, que consulta el día comercial de Guatemala.
   const [fecha, setFecha] = useState('')
-  const pedir = useCallback((signal: AbortSignal) => operacion.pedidos(pagina, estado, fecha, signal), [pagina, estado, fecha])
+  // El historial POS pide ventas completadas; los permisos y la fecha se aplican en la API.
+  const pedir = useCallback((signal: AbortSignal) => soloVentas
+    ? operacion.pedidos(pagina, 'COMPLETED', fecha, signal, 'POS')
+    : operacion.pedidos(pagina, estado, fecha, signal), [pagina, estado, fecha, soloVentas])
   const pedidos = useApi(pedir)
   const { ocupado, error, ejecutar } = useOperacion()
   function cambiar(accion: () => Promise<unknown>) {
@@ -211,18 +217,22 @@ export function PedidosPage() {
   }
 
   return <section className="space-y-5">
-    <h1 className="text-2xl font-bold">{rol === 'CUSTOMER' ? 'Mis pedidos' : 'Historial de pedidos'}</h1>
-    <label className="max-w-sm">Estado<select value={estado} onChange={event => { setEstado(event.target.value); setPagina(1) }}>
+    <h1 className="text-2xl font-bold">{soloVentas ? 'Historial de ventas' : rol === 'CUSTOMER' ? 'Mis pedidos' : 'Historial de pedidos'}</h1>
+    {!soloVentas && <label className="max-w-sm">Estado<select value={estado} onChange={event => { setEstado(event.target.value); setPagina(1) }}>
       <option value="">Todos</option>
       {Object.entries(estados).map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
-    </select></label>
+    </select></label>}
     <label className="max-w-sm">Fecha<input type="date" value={fecha} onChange={event => { setFecha(event.target.value); setPagina(1) }} /></label>
     <EstadoCarga {...pedidos} />
     {error && <p role="alert">{error}</p>}
-    {pedidos.data?.data.length === 0 && <p>No hay pedidos para este filtro.</p>}
+    {pedidos.data?.data.length === 0 && <p>{soloVentas ? 'No hay ventas para esta fecha.' : 'No hay pedidos para este filtro.'}</p>}
     {pedidos.data?.data.map(pedido => <article key={pedido.id} className="space-y-3 rounded-xl bg-white p-5">
       <Referencia id={pedido.cartId} />
       <p>{estados[pedido.status] ?? pedido.status} · Q {pedido.total}</p>
+      {soloVentas && <p className="text-sm">
+        {pedido.createdAt && <time dateTime={pedido.createdAt}>{fechaVenta.format(new Date(pedido.createdAt))}</time>}
+        {pedido.payment && <span> · {formasPago[pedido.payment.method]}</span>}
+      </p>}
       {/* Los datos de entrega solo se muestran al personal autorizado. */}
       {rol === 'ADMIN' && pedido.deliveryAddress && <p>Entrega: {pedido.deliveryAddress}{pedido.deliveryReference && ' · ' + pedido.deliveryReference}</p>}
       <ul>{pedido.items.map(item => <li key={item.id}>{item.productName} · {item.quantity} × Q {item.unitPrice}</li>)}</ul>

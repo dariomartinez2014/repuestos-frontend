@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { api } from './lib/axios'
 import type { Producto } from './types'
 
 // Asocia el SKU que devuelve la API con el archivo que guardamos en public/productos.
@@ -14,19 +16,29 @@ const fotosPorSku: Partial<Record<string, string>> = {
   'LUB-003': 'lub-003.webp',
 }
 
-export function FotoProducto({ producto }: { producto: Pick<Producto, 'sku' | 'name'> }) {
-  const foto = fotosPorSku[producto.sku.trim().toUpperCase()]
-  if (!foto) return null
+export function FotoProducto({ producto }: { producto: Pick<Producto, 'id' | 'sku' | 'name' | 'images'> }) {
+  const [indice, setIndice] = useState(0)
+  const fotoDeReferencia = fotosPorSku[producto.sku.trim().toUpperCase()]
+  // Las imágenes subidas se descargan de la API. Las fotos iniciales siguen en Vite.
+  const base = api.defaults.baseURL?.replace(/\/$/, '') ?? ''
+  const subidas = producto.images?.map(({ id }) => `${base}/products/${producto.id}/images/${id}`) ?? []
+  const fotos = subidas.length ? subidas : fotoDeReferencia ? [`/productos/${fotoDeReferencia}`] : []
+  if (!fotos.length) return null
+  const actual = indice % fotos.length
 
-  // Vite sirve el contenido de public desde la raíz de la tienda.
   return <figure className="overflow-hidden rounded-lg border border-tienda-borde bg-tienda-fondo">
     <img
-      src={`/productos/${foto}`}
+      src={fotos[actual]}
       alt={producto.name}
       loading="lazy"
       decoding="async"
       className="aspect-[3/2] w-full object-contain"
     />
-    <figcaption className="px-2 pb-1.5 text-right text-xs text-tienda-secundario">Imagen de referencia</figcaption>
+    {!subidas.length && <figcaption className="px-2 pb-1.5 text-right text-xs text-tienda-secundario">Imagen de referencia</figcaption>}
+    {fotos.length > 1 && <div className="flex items-center justify-center gap-3 p-2">
+      <button type="button" aria-label="Imagen anterior" onClick={() => setIndice((actual - 1 + fotos.length) % fotos.length)}>‹</button>
+      <span aria-live="polite" className="text-sm">Foto {actual + 1} de {fotos.length}</span>
+      <button type="button" aria-label="Imagen siguiente" onClick={() => setIndice((actual + 1) % fotos.length)}>›</button>
+    </div>}
   </figure>
 }
