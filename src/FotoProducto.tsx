@@ -14,6 +14,7 @@ const fotosPorSku: Partial<Record<string, string>> = {
   'LUB-001': 'lub-001.webp',
   'LUB-002': 'lub-002.webp',
   'LUB-003': 'lub-003.webp',
+  'LUB-005': 'lub-005.webp',
 }
 
 export function FotoProducto({ producto }: { producto: Pick<Producto, 'id' | 'sku' | 'name' | 'images'> }) {
