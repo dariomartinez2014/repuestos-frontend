@@ -7,6 +7,7 @@ import { auth } from './services/auth'
 import { mensajeError } from './lib/errores'
 import { useAuthStore } from './store'
 
+// Zod valida los campos y define el tipo que recibe el formulario.
 const schema = z.object({
   name: z.string().trim().max(150),
   email: z.email('Ingresa un correo válido').max(254),
@@ -38,6 +39,7 @@ export function AuthForm({ modo }: { modo: 'login' | 'registro' | 'staff' }) {
         return
       }
       if (modo === 'registro') await auth.registrar({ name, email, password })
+      // Guarda la sesión y abre la pantalla inicial según el rol.
       const sesion = await auth.entrar({ email, password })
       entrar(sesion)
       navegar(sesion.usuario.role === 'CUSTOMER' ? '/' : '/panel', { replace: true })

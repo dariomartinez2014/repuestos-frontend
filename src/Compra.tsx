@@ -5,7 +5,8 @@ import { mensajeError } from './lib/errores'
 import { compras } from './services/compras'
 import { useAuthStore } from './store'
 
-function Referencia({ id }: { id: number }) {
+// El ID del carrito se conserva como código visible a lo largo de la compra.
+export function Referencia({ id }: { id: number }) {
   return <p className="font-semibold">Código de compra: C-{id}</p>
 }
 
@@ -25,6 +26,7 @@ export function CarritoPage() {
     catch (err) { setError(mensajeError(err)) }
     finally { setOcupado(false) }
   }
+  // La API devuelve el pedido. Ese ID abre la pantalla de pago correspondiente.
   function confirmar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const direccion = Number(new FormData(event.currentTarget).get('direccion'))
@@ -63,6 +65,7 @@ export function CarritoPage() {
       {direcciones.error && <p role="alert">{direcciones.error} <button onClick={direcciones.recargar}>Reintentar</button></p>}
       <form onSubmit={confirmar} className="max-w-lg space-y-3">
         <label>Dirección de entrega<select name="direccion" required defaultValue=""><option value="">Selecciona</option>{direcciones.data?.map(d => <option key={d.id} value={d.id}>{d.addressLine}</option>)}</select></label>
+        {/* ESTILO LOCAL: agrega className="bg-emerald-700 px-6 py-3" para personalizar solo este botón. */}
         <button disabled={ocupado || !direcciones.data?.length}>Continuar al pago</button>
       </form>
       <form onSubmit={agregarDireccion} className="max-w-lg space-y-3 rounded bg-white p-4">
@@ -81,6 +84,8 @@ export function PagoPage() {
   const pedido = useApi(useCallback((signal: AbortSignal) => compras.pedido(Number(id), signal), [id]))
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
+  const [enlacePago, setEnlacePago] = useState<string | null>(null)
+  // El primer paso pide el enlace de MockPay y el segundo verifica el resultado con la API.
   async function operar(pagar: boolean) {
     if (!pedido.data) return
     setError('')
@@ -88,10 +93,11 @@ export function PagoPage() {
     try {
       if (pagar) {
         const intento = await compras.pagar(pedido.data.id)
-        if (intento.checkoutUrl) window.location.assign(intento.checkoutUrl)
+        if (intento.checkoutUrl) setEnlacePago(intento.checkoutUrl)
         else pedido.recargar()
       } else {
         await compras.sincronizar(pedido.data.id)
+        setEnlacePago(null)
         pedido.recargar()
       }
     } catch (err) { setError(mensajeError(err)) }
@@ -106,10 +112,22 @@ export function PagoPage() {
       <Referencia id={pedido.data.cartId} />
       <p>Total: Q {pedido.data.total}</p>
       <p>Estado: {pedido.data.status}</p>
-      {pedido.data.status === 'PENDING' && <div className="flex flex-wrap gap-3">
-        <button disabled={ocupado} onClick={() => operar(true)}>Pagar con MockPay</button>
-        <button disabled={ocupado} onClick={() => operar(false)}>Verificar pago</button>
-      </div>}
+      {["PAID", "IN_TRANSIT", "DELIVERED", "COMPLETED"].includes(pedido.data.status) && <p role="status">Pago confirmado</p>}
+      {pedido.data.status === 'PENDING' && <>
+        {/* La ruta de prueba conserva la referencia de compra y registra el resultado aparte. */}
+        {pedido.data.cartId && <aside className="max-w-lg space-y-3 rounded-lg border border-tienda-borde bg-tienda-tarjeta p-4">
+          <p className="text-sm text-tienda-secundario">Para una prueba con el mismo código y monto, usa el simulador. El resultado se guarda en este navegador.</p>
+          <Link className="inline-flex rounded-full bg-tienda-accion px-4 py-2 font-semibold text-tienda-cabecera no-underline hover:bg-tienda-hover" to={`/pago/${pedido.data.id}/demo`}>
+            Simular pago de este pedido
+          </Link>
+        </aside>}
+        <div className="flex flex-wrap gap-3">
+          {enlacePago
+            ? <a href={enlacePago} target="_blank" rel="noreferrer">Abrir MockPay</a>
+            : <button disabled={ocupado} onClick={() => operar(true)}>Pagar con MockPay</button>}
+          <button disabled={ocupado} onClick={() => operar(false)}>Verificar pago</button>
+        </div>
+      </>}
     </>}
     <Link to="/">Volver a la tienda</Link>
   </section>

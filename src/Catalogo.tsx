@@ -1,26 +1,39 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { CategoriaForm } from './CategoriaForm'
+import { FotoProducto } from './FotoProducto'
 import { useApi } from './hooks/useApi'
 import { mensajeError } from './lib/errores'
 import { productos, type ProductoDTO } from './services/productos'
 import { compras } from './services/compras'
 import { useAuthStore } from './store'
-import type { Categoria, ProductoInterno } from './types'
+import type { Categoria, Producto, ProductoInterno } from './types'
 
-export function Catalogo({ interno = false }: { interno?: boolean }) {
+const formatoPrecio = new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+export function Catalogo({ interno = false, search = '' }: { interno?: boolean; search?: string }) {
   const [categoria, setCategoria] = useState('')
-  const [pagina, setPagina] = useState(1)
+  // Al cambiar el texto, se busca desde la página 1 y se conserva la categoría.
+  const [paginacion, setPaginacion] = useState({ search, pagina: 1 })
+  const pagina = paginacion.search === search ? paginacion.pagina : 1
+  const setPagina = (numero: number) => setPaginacion({ search, pagina: numero })
   const [edicion, setEdicion] = useState<ProductoInterno>()
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
   const categorias = useApi(productos.categorias)
-  const pedir = useCallback((signal: AbortSignal) => productos.listar<ProductoInterno>(interno, pagina, Number(categoria) || undefined, signal), [interno, pagina, categoria])
-  const lista = useApi(pedir)
+  // El backend aplica el filtro de categoría, la búsqueda y el número de página.
+  const pedir = useCallback((signal: AbortSignal) => productos.listar<ProductoInterno>(interno, pagina, Number(categoria) || undefined, signal, search || undefined), [interno, pagina, categoria, search])
+  const lista = useApi(pedir, true)
   const sesion = useAuthStore(s => s.sesion)
   const navegar = useNavigate()
+  const mostrarPortada = !interno && !search
+  const TituloCatalogo = mostrarPortada ? 'h2' : 'h1'
+  const TituloProducto = mostrarPortada ? 'h3' : 'h2'
 
-  async function agregar(productoId: number) {
+  async function agregar(event: FormEvent<HTMLFormElement>, producto: Producto) {
+    event.preventDefault()
     if (!sesion) { navegar('/login'); return }
+    const unidades = Number(new FormData(event.currentTarget).get('unidades'))
     setOcupado(true)
     setError('')
     try {
@@ -28,8 +41,15 @@ export function Catalogo({ interno = false }: { interno?: boolean }) {
       const id = store.carrito ?? (await compras.crear()).id
       store.guardarCarrito(id)
       const carrito = await compras.carrito(id, new AbortController().signal)
-      const cantidad = carrito.items.find(i => i.productId === productoId)?.quantity ?? 0
-      await compras.agregar(id, productoId, cantidad + 1)
+      // Suma lo que el cliente eligió a la cantidad que ya está guardada en el carrito.
+      const linea = carrito.items.find(i => i.productId === producto.id)
+      const enCarrito = linea?.quantity ?? 0
+      const maximo = Math.min(linea?.product.stock ?? producto.stock, 10_000)
+      if (enCarrito + unidades > maximo) {
+        setError(`Puedes agregar hasta ${Math.max(0, maximo - enCarrito)} unidades más de ${producto.name}.`)
+        return
+      }
+      await compras.agregar(id, producto.id, enCarrito + unidades)
       navegar('/carrito')
     } catch (err) { setError(mensajeError(err)) }
     finally { setOcupado(false) }
@@ -45,22 +65,74 @@ export function Catalogo({ interno = false }: { interno?: boolean }) {
   }
 
   return <section className="space-y-5">
-    <h1 className="text-2xl font-bold">{interno ? 'Inventario' : 'Catálogo de repuestos'}</h1>
+    {/* PORTADA: imagen generada en Stitch. Las tarjetas se completan con la API. */}
+    {mostrarPortada && <div className="grid overflow-hidden rounded-2xl bg-tienda-cabecera text-white md:grid-cols-2">
+      <div className="flex flex-col justify-center px-6 py-8 sm:px-10 sm:py-10">
+        <h1 className="max-w-md text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+          Repuestos para tu vehículo
+        </h1>
+        <p className="mt-3 max-w-sm text-sm text-slate-200 sm:text-base">Busca por nombre o código y consulta las existencias antes de comprar.</p>
+      </div>
+      <img src="/portada-repuestos.jpg" alt="" width={512} height={286} className="h-36 w-full object-cover object-center sm:h-44 md:h-64" />
+    </div>}
+    {/* El selector sigue filtrando por las categorías recibidas del backend. */}
+    <div className="flex flex-col gap-4 rounded-xl border border-tienda-borde bg-tienda-tarjeta px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <TituloCatalogo className="text-2xl font-bold tracking-tight">{interno ? 'Inventario' : 'Catálogo de repuestos'}</TituloCatalogo>
+        {search && <p className="mt-1 text-sm text-tienda-secundario">Resultados para «{search}»</p>}
+      </div>
+      <label className="flex flex-wrap items-center gap-2 text-tienda-secundario">
+        Categoría
+        <select className="w-auto min-w-32 text-tienda-texto" value={categoria} onChange={e => { setCategoria(e.target.value); setPagina(1) }}>
+          <option value="">Todas</option>{categorias.data?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </label>
+    </div>
     {categorias.error && <p role="alert">{categorias.error} <button onClick={categorias.recargar}>Reintentar categorías</button></p>}
-    <label className="max-w-xs">Categoría<select value={categoria} onChange={e => { setCategoria(e.target.value); setPagina(1) }}>
-      <option value="">Todas</option>{categorias.data?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-    </select></label>
-    {interno && <ProductoForm key={edicion?.id ?? 'nuevo'} producto={edicion} categorias={categorias.data ?? []} alGuardar={() => { setEdicion(undefined); lista.recargar() }} cancelar={() => setEdicion(undefined)} />}
+    {interno && <CategoriaForm alCrear={categorias.recargar} />}
+    {interno && <ProductoForm
+      key={edicion?.id ?? 'nuevo'}
+      producto={edicion}
+      categorias={categorias.data ?? []}
+      alGuardar={() => { setEdicion(undefined); lista.recargar() }}
+      cancelar={() => setEdicion(undefined)}
+    />}
     {error && <p role="alert">{error}</p>}
     {lista.cargando && <p role="status">Cargando productos…</p>}
     {lista.error && <p role="alert">{lista.error} <button onClick={lista.recargar}>Reintentar</button></p>}
-    {lista.data?.data.length === 0 && <p>No hay productos para esta categoría.</p>}
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {lista.data?.data.map(p => <article key={p.id} className="space-y-2 rounded-xl border border-slate-200 bg-white p-4">
-        <p>{p.sku} · {p.category.name}</p><h2 className="font-bold">{p.name}</h2><p>{p.description}</p>
-        <p>Q {p.salePrice} · {p.stock} disponibles</p>
-        {interno ? <><p>Costo Q {p.acquisitionCost} · {p.active ? 'Activo' : 'Retirado'}</p><div className="flex gap-2"><button onClick={() => setEdicion(p)}>Editar</button><button disabled={ocupado || !p.active} onClick={() => retirar(p.id)}>Retirar</button></div></>
-          : (!sesion || sesion.usuario.role === 'CUSTOMER') && <button disabled={ocupado || p.stock < 1} onClick={() => agregar(p.id)}>{p.stock < 1 ? 'Sin stock' : 'Agregar al carrito'}</button>}
+    {lista.data?.data.length === 0 && <p>No hay productos que coincidan con la búsqueda y la categoría.</p>}
+    {/* CUADRÍCULA: gap-5 separa tarjetas y lg:grid-cols-3 define tres columnas en escritorio. */}
+    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {lista.data?.data.map(p => <article key={p.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-tienda-borde bg-tienda-tarjeta p-5 shadow-sm transition-shadow hover:shadow-md">
+        <FotoProducto producto={p} />
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-tienda-secundario">
+          <span className="font-mono font-semibold">{p.sku}</span>
+          <span>{p.category.name}</span>
+        </div>
+        <TituloProducto className="text-lg leading-snug font-bold">{p.name}</TituloProducto>
+        {p.description && <p className="mb-2 text-sm leading-relaxed text-tienda-secundario">{p.description}</p>}
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-tienda-borde pt-3">
+          <p className="text-2xl font-bold tracking-tight tabular-nums">Q {formatoPrecio.format(Number(p.salePrice))}</p>
+          <p className={p.stock > 0 ? 'text-sm font-medium text-emerald-700' : 'text-sm font-medium text-rose-700'}>
+            {p.stock > 0 ? `${p.stock} disponibles` : 'Agotado'}
+          </p>
+        </div>
+        {interno ? <>
+          <p>Costo Q {p.acquisitionCost} · {p.active ? 'Activo' : 'Retirado'}</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setEdicion(p)}>Editar</button>
+            <button disabled={ocupado || !p.active} onClick={() => retirar(p.id)}>Retirar</button>
+          </div>
+        </>
+          : (!sesion || sesion.usuario.role === 'CUSTOMER') && <form onSubmit={event => agregar(event, p)}>
+            <fieldset disabled={ocupado || p.stock < 1} className="flex min-w-0 items-end gap-3">
+              {/* w-20 fija el ancho del selector y el botón ocupa el resto de la fila. */}
+              <label className="w-20 shrink-0 text-xs text-tienda-secundario">Cantidad
+                <input className="mt-1 h-10 text-sm text-tienda-texto" name="unidades" type="number" min={1} max={Math.max(1, Math.min(p.stock, 10_000))} step={1} defaultValue={1} required />
+              </label>
+              <button type="submit" className="min-h-10 flex-1 rounded-lg px-3 text-sm font-semibold">{p.stock < 1 ? 'Sin stock' : 'Agregar al carrito'}</button>
+            </fieldset>
+          </form>}
       </article>)}
     </div>
     {lista.data && lista.data.total > 0 && <nav className="flex items-center gap-3" aria-label="Páginas del catálogo">
@@ -71,7 +143,12 @@ export function Catalogo({ interno = false }: { interno?: boolean }) {
   </section>
 }
 
-function ProductoForm({ producto, categorias, alGuardar, cancelar }: { producto?: ProductoInterno; categorias: Categoria[]; alGuardar: () => void; cancelar: () => void }) {
+function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
+  producto?: ProductoInterno
+  categorias: Categoria[]
+  alGuardar: () => void
+  cancelar: () => void
+}) {
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
   async function guardar(event: FormEvent<HTMLFormElement>) {
@@ -82,9 +159,15 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: { producto?
       categoryId: Number(f.get('categoryId')), sku: String(f.get('sku')).trim(), name: String(f.get('name')).trim(),
       description: String(f.get('description')).trim(), acquisitionCost: Number(f.get('cost')), salePrice: Number(f.get('price')),
     }
+    // El selector admite varios archivos y el backend vuelve a validar cada uno.
+    const imagenes = f.getAll('imagenes').filter((archivo): archivo is File => archivo instanceof File && archivo.size > 0)
+    if (imagenes.length > 5 || imagenes.some(imagen => imagen.size > 5 * 1024 * 1024)) {
+      setError('Elige hasta 5 imágenes de 5 MB como máximo cada una.')
+      return
+    }
     setError('')
     setGuardando(true)
-    try { await productos.guardar(datos, producto?.id); form.reset(); alGuardar() }
+    try { await productos.guardar(datos, producto?.id, imagenes); form.reset(); alGuardar() }
     catch (err) { setError(mensajeError(err)) }
     finally { setGuardando(false) }
   }
@@ -107,7 +190,11 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: { producto?
       <label>Descripción<input name="description" maxLength={2000} defaultValue={producto?.description ?? ''} /></label>
       <label>Costo<input name="cost" type="number" min="0" step=".01" required defaultValue={producto?.acquisitionCost} /></label>
       <label>Precio<input name="price" type="number" min=".01" step=".01" required defaultValue={producto?.salePrice} /></label>
-      <button disabled={guardando || !categorias.length}>Guardar producto</button>
+      {!producto && <label className="sm:col-span-2">Imágenes del producto
+        <input name="imagenes" type="file" accept="image/jpeg,image/png,image/webp" multiple />
+        <span className="text-xs text-tienda-secundario">Hasta 5 imágenes JPG, PNG o WebP. Máximo 5 MB por imagen.</span>
+      </label>}
+      <button disabled={guardando || !categorias.length}>{guardando ? 'Guardando…' : 'Guardar producto'}</button>
       {producto && <button type="button" onClick={cancelar}>Cancelar edición</button>}
     </form>
     {producto && <form onSubmit={ajustar} className="grid items-end gap-3 sm:grid-cols-3">
