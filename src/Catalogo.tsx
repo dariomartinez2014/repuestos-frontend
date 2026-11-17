@@ -5,7 +5,7 @@ import { mensajeError } from './lib/errores'
 import { productos, type ProductoDTO } from './services/productos'
 import { compras } from './services/compras'
 import { useAuthStore } from './store'
-import type { Categoria, ProductoInterno } from './types'
+import type { Categoria, Producto, ProductoInterno } from './types'
 
 export function Catalogo({ interno = false, search = '' }: { interno?: boolean; search?: string }) {
   const [categoria, setCategoria] = useState('')
@@ -19,8 +19,10 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
   const sesion = useAuthStore(s => s.sesion)
   const navegar = useNavigate()
 
-  async function agregar(productoId: number) {
+  async function agregar(event: FormEvent<HTMLFormElement>, producto: Producto) {
+    event.preventDefault()
     if (!sesion) { navegar('/login'); return }
+    const unidades = Number(new FormData(event.currentTarget).get('unidades'))
     setOcupado(true)
     setError('')
     try {
@@ -28,8 +30,15 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
       const id = store.carrito ?? (await compras.crear()).id
       store.guardarCarrito(id)
       const carrito = await compras.carrito(id, new AbortController().signal)
-      const cantidad = carrito.items.find(i => i.productId === productoId)?.quantity ?? 0
-      await compras.agregar(id, productoId, cantidad + 1)
+      // Suma lo que el cliente eligió a la cantidad que ya está guardada en el carrito.
+      const linea = carrito.items.find(i => i.productId === producto.id)
+      const enCarrito = linea?.quantity ?? 0
+      const maximo = Math.min(linea?.product.stock ?? producto.stock, 10_000)
+      if (enCarrito + unidades > maximo) {
+        setError(`Puedes agregar hasta ${Math.max(0, maximo - enCarrito)} unidades más de ${producto.name}.`)
+        return
+      }
+      await compras.agregar(id, producto.id, enCarrito + unidades)
       navegar('/carrito')
     } catch (err) { setError(mensajeError(err)) }
     finally { setOcupado(false) }
@@ -70,7 +79,15 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
           {p.stock > 0 ? `${p.stock} disponibles` : 'Agotado'}
         </p>
         {interno ? <><p>Costo Q {p.acquisitionCost} · {p.active ? 'Activo' : 'Retirado'}</p><div className="flex gap-2"><button onClick={() => setEdicion(p)}>Editar</button><button disabled={ocupado || !p.active} onClick={() => retirar(p.id)}>Retirar</button></div></>
-          : (!sesion || sesion.usuario.role === 'CUSTOMER') && <button disabled={ocupado || p.stock < 1} onClick={() => agregar(p.id)}>{p.stock < 1 ? 'Sin stock' : 'Agregar al carrito'}</button>}
+          : (!sesion || sesion.usuario.role === 'CUSTOMER') && <form onSubmit={event => agregar(event, p)}>
+            <fieldset disabled={ocupado || p.stock < 1} className="flex flex-wrap items-end gap-2">
+              {/* w-24 ajusta el ancho del campo. min, max y step limitan las unidades. */}
+              <label className="w-24">Cantidad
+                <input name="unidades" type="number" min={1} max={Math.max(1, Math.min(p.stock, 10_000))} step={1} defaultValue={1} required />
+              </label>
+              <button type="submit">{p.stock < 1 ? 'Sin stock' : 'Agregar al carrito'}</button>
+            </fieldset>
+          </form>}
       </article>)}
     </div>
     {lista.data && lista.data.total > 0 && <nav className="flex items-center gap-3" aria-label="Páginas del catálogo">
