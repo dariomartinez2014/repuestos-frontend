@@ -101,12 +101,16 @@ export function VentaPage({ social = false }: { social?: boolean }) {
     (suma, item) => suma + Math.round(Number(item.product.salePrice) * 100) * item.quantity, 0,
   ) / 100, [venta.data])
 
-  function agregar(producto: Producto) {
+  function agregar(event: FormEvent<HTMLFormElement>, producto: Producto, enCarrito: number) {
+    event.preventDefault()
+    const form = event.currentTarget
+    const unidades = Number(new FormData(form).get('unidades'))
     void ejecutar(async () => {
       const id = carrito ?? (await compras.crear(canal)).id
       guardarCarritoStaff(canal, id)
-      const cantidad = venta.data?.items.find(item => item.productId === producto.id)?.quantity ?? 0
-      await compras.agregar(id, producto.id, cantidad + 1)
+      // El servicio guarda la cantidad total de la línea, así que sumamos las nuevas unidades.
+      await compras.agregar(id, producto.id, enCarrito + unidades)
+      form.reset()
       venta.recargar()
     })
   }
@@ -140,10 +144,25 @@ export function VentaPage({ social = false }: { social?: boolean }) {
     </article> : <>
       <EstadoCarga {...catalogo} />
       <ul className="grid gap-3 sm:grid-cols-2">
-        {catalogo.data?.data.map(producto => <li key={producto.id} className="rounded-xl bg-white p-4">
-          <p>{producto.sku} · {producto.name} · Q {producto.salePrice}</p>
-          <button disabled={(!social && !abierta) || ocupado || venta.cargando || !!venta.error || producto.stock < 1} onClick={() => agregar(producto)}>Agregar</button>
-        </li>)}
+        {catalogo.data?.data.map(producto => {
+          const enCarrito = venta.data?.items.find(item => item.productId === producto.id)?.quantity ?? 0
+          // La API acepta hasta 10 000 unidades por línea y comprueba el stock al cobrar.
+          const maximo = Math.max(0, Math.min(producto.stock, 10_000) - enCarrito)
+          const bloqueado = (!social && !abierta) || ocupado || venta.cargando || !!venta.error || maximo === 0
+          return <li key={producto.id} className="space-y-2 rounded-xl bg-white p-4">
+            <p>{producto.sku} · {producto.name} · Q {producto.salePrice}</p>
+            <p className="text-sm text-slate-600">{producto.stock} en stock · {enCarrito} en la venta</p>
+            <form onSubmit={event => agregar(event, producto, enCarrito)}>
+              <fieldset disabled={bloqueado} className="flex flex-wrap items-end gap-2">
+                {/* w-24 controla el ancho del campo de cantidad. */}
+                <label className="w-24">Cantidad
+                  <input name="unidades" type="number" min={1} max={Math.max(1, maximo)} step={1} defaultValue={1} required />
+                </label>
+                <button>{producto.stock === 0 ? 'Sin stock' : maximo === 0 ? 'Límite alcanzado' : 'Agregar'}</button>
+              </fieldset>
+            </form>
+          </li>
+        })}
       </ul>
       {catalogo.data && <nav className="flex gap-3" aria-label="Páginas de productos">
         <button disabled={pagina === 1} onClick={() => setPagina(pagina - 1)}>Anterior</button>
