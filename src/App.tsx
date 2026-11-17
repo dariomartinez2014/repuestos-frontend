@@ -13,6 +13,7 @@ const MockPayDemo = lazy(() => import('./MockPayDemo').then(modulo => ({ default
 import { useAuthStore } from './store'
 import type { Role } from './types'
 
+// Cada grupo de rutas indica los roles que pueden entrar.
 function Protegida({ roles }: { roles: Role[] }) {
   const sesion = useAuthStore(s => s.sesion)
   if (!sesion) return <Navigate to="/login" replace />
@@ -28,30 +29,35 @@ function Layout() {
   const [params] = useSearchParams()
   const navegar = useNavigate()
   return <>
-    {/* CABECERA: cambia bg-slate-950 para ajustar el fondo de la tienda. */}
-    <header className="bg-slate-950 text-white">
-      <nav className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 px-5 py-4" aria-label="Navegación principal">
-        <Link to="/" className="text-2xl font-bold text-white no-underline">Repuestos<span className="text-amber-400">.</span></Link>
-        <form role="search" className="order-last flex w-full gap-2 sm:order-none sm:w-auto sm:flex-1" onSubmit={event => {
+    {/* CABECERA: los colores bg-tienda-* se editan en la paleta de index.css. */}
+    <header className="bg-tienda-cabecera text-white">
+      <nav className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6" aria-label="Navegación principal">
+        <Link to="/" className="text-2xl font-extrabold tracking-tight text-white no-underline">Repuestos<span className="text-tienda-accion">.</span></Link>
+        <form role="search" className="order-last flex w-full min-w-0 overflow-hidden rounded-lg bg-tienda-tarjeta focus-within:ring-2 focus-within:ring-tienda-accion lg:order-none lg:w-auto lg:flex-1" onSubmit={event => {
           event.preventDefault()
           const search = String(new FormData(event.currentTarget).get('search') ?? '').trim()
           navegar(search ? '/?' + new URLSearchParams({ search }) : '/')
         }}>
-          <input key={params.get('search') ?? ''} name="search" type="search" aria-label="Buscar repuestos" defaultValue={params.get('search') ?? ''} placeholder="Busca por nombre o código" className="min-w-0 text-slate-900" />
-          <button type="submit">Buscar</button>
+          <input key={params.get('search') ?? ''} name="search" type="search" aria-label="Buscar repuestos" defaultValue={params.get('search') ?? ''} placeholder="Busca por nombre o código" className="min-w-0 flex-1 rounded-none border-0 px-4 text-tienda-texto focus-visible:outline-none" />
+          <button type="submit" className="shrink-0 rounded-none px-5 focus-visible:-outline-offset-4">Buscar</button>
         </form>
-        {sesion?.usuario.role === 'CUSTOMER' && <Link to="/carrito">Carrito</Link>}
-        {sesion && <Link to="/pedidos">Pedidos</Link>}
-        {sesion && sesion.usuario.role !== 'CUSTOMER' && <Link to="/panel">Panel operativo</Link>}
-        {sesion?.usuario.role === 'ADMIN' && <><Link to="/panel/productos">Inventario</Link><Link to="/panel/personal">Personal</Link></>}
-        {sesion ? <><span>{sesion.usuario.name}</span><button onClick={salir}>Cerrar sesión</button></>
-          : <><Link to="/login">Ingresar</Link><Link to="/registro">Registrarse</Link></>}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+          {sesion?.usuario.role === 'CUSTOMER' && <Link className="font-semibold no-underline hover:underline" to="/carrito">Carrito</Link>}
+          {sesion && <Link to="/pedidos">Pedidos</Link>}
+          {sesion && sesion.usuario.role !== 'CUSTOMER' && <Link to="/panel">Panel operativo</Link>}
+          {sesion?.usuario.role === 'ADMIN' && <><Link to="/panel/productos">Inventario</Link><Link to="/panel/personal">Personal</Link></>}
+          {sesion ? <><span>{sesion.usuario.name}</span><button onClick={salir}>Cerrar sesión</button></>
+            : <><Link className="font-semibold no-underline hover:underline" to="/login">Ingresar</Link><Link className="no-underline hover:underline" to="/registro">Registrarse</Link></>}
+        </div>
       </nav>
-      <div className="bg-slate-800 px-5 py-2 text-sm">
-        <div className="mx-auto max-w-6xl"><Link to="/">Todos los repuestos</Link></div>
+      <div className="bg-tienda-barra text-sm">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 sm:px-6">
+          <Link className="font-medium no-underline hover:underline" to="/">Todos los repuestos</Link>
+          <Link className="font-semibold text-tienda-accion no-underline hover:underline" to="/demo/mockpay">Demo MockPay</Link>
+        </div>
       </div>
     </header>
-    <main className="mx-auto max-w-6xl px-5 py-8"><Suspense fallback={<p role="status">Cargando pantalla…</p>}><Outlet /></Suspense></main>
+    <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8"><Suspense fallback={<p role="status">Cargando pantalla…</p>}><Outlet /></Suspense></main>
   </>
 }
 function Panel() {
@@ -78,6 +84,7 @@ function Tienda() {
 export default function App() {
   return <Routes><Route element={<Layout />}>
     <Route index element={<Tienda />} />
+    {/* La demo queda fuera de las rutas protegidas para que cualquiera pueda abrirla. */}
     <Route path="demo/mockpay" element={<MockPayDemo />} />
     <Route element={<Visitante />}>
       <Route path="login" element={<AuthForm key="login" modo="login" />} />

@@ -7,6 +7,8 @@ import { compras } from './services/compras'
 import { useAuthStore } from './store'
 import type { Categoria, Producto, ProductoInterno } from './types'
 
+const formatoPrecio = new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
 export function Catalogo({ interno = false, search = '' }: { interno?: boolean; search?: string }) {
   const [categoria, setCategoria] = useState('')
   const [pagina, setPagina] = useState(1)
@@ -14,10 +16,14 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
   const categorias = useApi(productos.categorias)
+  // El backend aplica el filtro de categoría, la búsqueda y el número de página.
   const pedir = useCallback((signal: AbortSignal) => productos.listar<ProductoInterno>(interno, pagina, Number(categoria) || undefined, signal, search || undefined), [interno, pagina, categoria, search])
   const lista = useApi(pedir, true)
   const sesion = useAuthStore(s => s.sesion)
   const navegar = useNavigate()
+  const mostrarPortada = !interno && !search
+  const TituloCatalogo = mostrarPortada ? 'h2' : 'h1'
+  const TituloProducto = mostrarPortada ? 'h3' : 'h2'
 
   async function agregar(event: FormEvent<HTMLFormElement>, producto: Producto) {
     event.preventDefault()
@@ -54,38 +60,64 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
   }
 
   return <section className="space-y-5">
-    {/* PORTADA: p-6 cambia el espacio interior y text-3xl el tamaño del título. */}
-    <div className="rounded-xl bg-white p-6">
-      <h1 className="text-3xl font-bold">{interno ? 'Inventario' : 'Catálogo de repuestos'}</h1>
-      {search && <p className="mt-2 text-slate-600">Resultados para «{search}»</p>}
+    {/* PORTADA: imagen generada en Stitch. Las tarjetas se completan con la API. */}
+    {mostrarPortada && <div className="grid overflow-hidden rounded-2xl bg-tienda-cabecera text-white md:grid-cols-2">
+      <div className="flex flex-col justify-center px-6 py-8 sm:px-10 sm:py-10">
+        <h1 className="max-w-md text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
+          Repuestos para tu vehículo
+        </h1>
+        <p className="mt-3 max-w-sm text-sm text-slate-200 sm:text-base">Busca por nombre o código y consulta las existencias antes de comprar.</p>
+      </div>
+      <img src="/portada-repuestos.jpg" alt="" width={512} height={286} className="h-36 w-full object-cover object-center sm:h-44 md:h-64" />
+    </div>}
+    {/* El selector sigue filtrando por las categorías recibidas del backend. */}
+    <div className="flex flex-col gap-4 rounded-xl border border-tienda-borde bg-tienda-tarjeta px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <TituloCatalogo className="text-2xl font-bold tracking-tight">{interno ? 'Inventario' : 'Catálogo de repuestos'}</TituloCatalogo>
+        {search && <p className="mt-1 text-sm text-tienda-secundario">Resultados para «{search}»</p>}
+      </div>
+      <label className="flex flex-wrap items-center gap-2 text-tienda-secundario">
+        Categoría
+        <select className="w-auto min-w-32 text-tienda-texto" value={categoria} onChange={e => { setCategoria(e.target.value); setPagina(1) }}>
+          <option value="">Todas</option>{categorias.data?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </label>
     </div>
     {categorias.error && <p role="alert">{categorias.error} <button onClick={categorias.recargar}>Reintentar categorías</button></p>}
-    <label className="max-w-xs">Categoría<select value={categoria} onChange={e => { setCategoria(e.target.value); setPagina(1) }}>
-      <option value="">Todas</option>{categorias.data?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-    </select></label>
     {interno && <ProductoForm key={edicion?.id ?? 'nuevo'} producto={edicion} categorias={categorias.data ?? []} alGuardar={() => { setEdicion(undefined); lista.recargar() }} cancelar={() => setEdicion(undefined)} />}
     {error && <p role="alert">{error}</p>}
     {lista.cargando && <p role="status">Cargando productos…</p>}
     {lista.error && <p role="alert">{lista.error} <button onClick={lista.recargar}>Reintentar</button></p>}
     {lista.data?.data.length === 0 && <p>No hay productos que coincidan con la búsqueda y la categoría.</p>}
-    {/* CUADRÍCULA: gap-4 separa tarjetas; lg:grid-cols-3 define tres columnas en escritorio. */}
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {lista.data?.data.map(p => <article key={p.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-sm text-slate-600">{p.sku} · {p.category.name}</p>
-        <h2 className="text-lg font-bold">{p.name}</h2>
-        {p.description && <p className="text-sm text-slate-600">{p.description}</p>}
-        <p className="mt-auto pt-2 text-2xl font-bold">Q {p.salePrice}</p>
-        <p className={p.stock > 0 ? 'text-sm text-emerald-700' : 'text-sm text-rose-700'}>
-          {p.stock > 0 ? `${p.stock} disponibles` : 'Agotado'}
-        </p>
-        {interno ? <><p>Costo Q {p.acquisitionCost} · {p.active ? 'Activo' : 'Retirado'}</p><div className="flex gap-2"><button onClick={() => setEdicion(p)}>Editar</button><button disabled={ocupado || !p.active} onClick={() => retirar(p.id)}>Retirar</button></div></>
+    {/* CUADRÍCULA: gap-5 separa tarjetas y lg:grid-cols-3 define tres columnas en escritorio. */}
+    <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      {lista.data?.data.map(p => <article key={p.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-tienda-borde bg-tienda-tarjeta p-5 shadow-sm transition-shadow hover:shadow-md">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-tienda-secundario">
+          <span className="font-mono font-semibold">{p.sku}</span>
+          <span>{p.category.name}</span>
+        </div>
+        <TituloProducto className="text-lg leading-snug font-bold">{p.name}</TituloProducto>
+        {p.description && <p className="mb-2 text-sm leading-relaxed text-tienda-secundario">{p.description}</p>}
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-tienda-borde pt-3">
+          <p className="text-2xl font-bold tracking-tight tabular-nums">Q {formatoPrecio.format(Number(p.salePrice))}</p>
+          <p className={p.stock > 0 ? 'text-sm font-medium text-emerald-700' : 'text-sm font-medium text-rose-700'}>
+            {p.stock > 0 ? `${p.stock} disponibles` : 'Agotado'}
+          </p>
+        </div>
+        {interno ? <>
+          <p>Costo Q {p.acquisitionCost} · {p.active ? 'Activo' : 'Retirado'}</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setEdicion(p)}>Editar</button>
+            <button disabled={ocupado || !p.active} onClick={() => retirar(p.id)}>Retirar</button>
+          </div>
+        </>
           : (!sesion || sesion.usuario.role === 'CUSTOMER') && <form onSubmit={event => agregar(event, p)}>
-            <fieldset disabled={ocupado || p.stock < 1} className="flex flex-wrap items-end gap-2">
-              {/* w-24 ajusta el ancho del campo. min, max y step limitan las unidades. */}
-              <label className="w-24">Cantidad
-                <input name="unidades" type="number" min={1} max={Math.max(1, Math.min(p.stock, 10_000))} step={1} defaultValue={1} required />
+            <fieldset disabled={ocupado || p.stock < 1} className="flex min-w-0 items-end gap-3">
+              {/* w-20 fija el ancho del selector y el botón ocupa el resto de la fila. */}
+              <label className="w-20 shrink-0 text-xs text-tienda-secundario">Cantidad
+                <input className="mt-1 h-10 text-sm text-tienda-texto" name="unidades" type="number" min={1} max={Math.max(1, Math.min(p.stock, 10_000))} step={1} defaultValue={1} required />
               </label>
-              <button type="submit">{p.stock < 1 ? 'Sin stock' : 'Agregar al carrito'}</button>
+              <button type="submit" className="min-h-10 flex-1 rounded-lg px-3 text-sm font-semibold">{p.stock < 1 ? 'Sin stock' : 'Agregar al carrito'}</button>
             </fieldset>
           </form>}
       </article>)}

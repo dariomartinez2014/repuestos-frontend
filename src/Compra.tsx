@@ -5,6 +5,7 @@ import { mensajeError } from './lib/errores'
 import { compras } from './services/compras'
 import { useAuthStore } from './store'
 
+// El ID del carrito se conserva como código visible a lo largo de la compra.
 export function Referencia({ id }: { id: number }) {
   return <p className="font-semibold">Código de compra: C-{id}</p>
 }
@@ -25,6 +26,7 @@ export function CarritoPage() {
     catch (err) { setError(mensajeError(err)) }
     finally { setOcupado(false) }
   }
+  // La API devuelve el pedido. Ese ID abre la pantalla de pago correspondiente.
   function confirmar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const direccion = Number(new FormData(event.currentTarget).get('direccion'))
@@ -83,6 +85,7 @@ export function PagoPage() {
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
   const [enlacePago, setEnlacePago] = useState<string | null>(null)
+  // El primer paso pide el enlace de MockPay y el segundo verifica el resultado con la API.
   async function operar(pagar: boolean) {
     if (!pedido.data) return
     setError('')

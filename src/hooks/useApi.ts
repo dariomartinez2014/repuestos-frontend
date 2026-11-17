@@ -14,6 +14,7 @@ export function useApi<T>(pedir: Peticion<T>, alVolver = false) {
   const [intento, setIntento] = useState(0)
   const [resultado, setResultado] = useState<Resultado<T> | null>(null)
 
+  // Al cambiar la consulta, se cancela la anterior para que no reemplace el resultado nuevo.
   useEffect(() => {
     const controlador = new AbortController()
     const { signal } = controlador

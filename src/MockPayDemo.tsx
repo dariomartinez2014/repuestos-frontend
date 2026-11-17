@@ -8,6 +8,7 @@ const clave = 'repuestos:demo-mockpay:C-26'
 const estados = ['carrito', 'pendiente', 'aprobado', 'rechazado', 'confirmado'] as const
 type Estado = typeof estados[number]
 
+// Al recargar, se recupera la etapa guardada en este navegador.
 function leerEstado(): Estado {
   const guardado = localStorage.getItem(clave)
   return estados.find(estado => estado === guardado) ?? 'carrito'
@@ -26,7 +27,7 @@ export function MockPayDemo() {
     <p className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-900">
       Simulación con datos de prueba. El resultado se guarda en este navegador.
     </p>
-    <article className="space-y-4 rounded-xl border border-slate-200 bg-white p-5">
+    <article className="space-y-4 rounded-xl border border-tienda-borde bg-tienda-tarjeta p-5">
       <div className="space-y-2" aria-live="polite">
         <h2 className="text-lg font-semibold">
           {estado === 'carrito' ? 'Carrito de prueba' : estado === 'confirmado' ? 'Pago de prueba confirmado' : 'Pago de prueba'}
@@ -38,6 +39,7 @@ export function MockPayDemo() {
         {estado === 'aprobado' && <p className="text-emerald-700">Simulación aprobada. Verifica el pago para ver la confirmación.</p>}
         {estado === 'rechazado' && <p className="text-rose-700">Simulación rechazada. Puedes reiniciar la demo para volver a probar.</p>}
       </div>
+      {/* Los botones cambian la etapa del intento de prueba guardado en el navegador. */}
       {estado === 'carrito' && <button type="button" onClick={() => setEstado('pendiente')}>Continuar al pago de prueba</button>}
       {estado === 'pendiente' && <div className="flex flex-wrap gap-3">
         <button type="button" onClick={() => setEstado('aprobado')}>Aprobar prueba</button>

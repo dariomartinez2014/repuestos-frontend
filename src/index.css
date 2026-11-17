@@ -1,12 +1,24 @@
 @import "tailwindcss";
+
+/* PALETA DE REPUESTOS. Edita estos valores en VS Code y guarda para ver el cambio. */
+@theme {
+  --color-tienda-cabecera: #131d2e;   /* Barra principal */
+  --color-tienda-barra: #233249;      /* Navegación secundaria */
+  --color-tienda-fondo: #f3f4f6;      /* Fondo de la tienda */
+  --color-tienda-tarjeta: #ffffff;    /* Tarjetas y campos */
+  --color-tienda-borde: #dce2ea;      /* Líneas y bordes */
+  --color-tienda-texto: #182338;      /* Títulos y texto principal */
+  --color-tienda-secundario: #526176; /* Descripciones */
+  --color-tienda-accion: #ffcd56;     /* Botones y acento de marca */
+  --color-tienda-hover: #f3b83c;      /* Botón al pasar el mouse */
+  --color-tienda-foco: #2b6da4;       /* Indicador al navegar con teclado */
+}
+
 @layer base {
-  body { @apply bg-sky-300 text-slate-900; }
-  input, select { @apply block w-full rounded border border-slate-300 bg-white px-3 py-2; }
-  /* ESTILO GENERAL: estas clases se aplican a todos los botones. */
-  /* COLOR: bg-amber-300 pinta el fondo; hover:bg-amber-400 lo oscurece al pasar el mouse. */
-  /* TAMAÑO: px-4 da espacio a los lados y py-2 arriba y abajo. */
-  /* ESTADOS: rounded redondea las esquinas y disabled:opacity-50 atenúa el botón deshabilitado. */
-  button { @apply rounded-full bg-amber-300 px-4 py-2 font-medium text-slate-950 enabled:hover:bg-sky-400 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50; }
+  body { @apply bg-tienda-fondo text-tienda-texto; }
+  input, select { @apply block w-full rounded-lg border border-tienda-borde bg-tienda-tarjeta px-3 py-2 focus-visible:outline-2 focus-visible:outline-tienda-foco; }
+  /* TAMAÑO: px-4 da espacio a los lados, py-2 arriba y abajo y rounded-full redondea el botón. */
+  button { @apply rounded-full bg-tienda-accion px-4 py-2 font-medium text-tienda-cabecera enabled:hover:bg-tienda-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tienda-foco disabled:opacity-50; }
   a { @apply text-indigo-700 underline; }
   header a { @apply text-white; }
   label { @apply block text-sm font-medium; }
