@@ -8,6 +8,8 @@ import { lazy, Suspense } from 'react'
 const CajaPage = lazy(() => import('./Operacion').then(modulo => ({ default: modulo.CajaPage })))
 const PedidosPage = lazy(() => import('./Operacion').then(modulo => ({ default: modulo.PedidosPage })))
 const VentaPage = lazy(() => import('./Operacion').then(modulo => ({ default: modulo.VentaPage })))
+// Pantalla de prueba independiente del checkout de los pedidos reales.
+const MockPayDemo = lazy(() => import('./MockPayDemo').then(modulo => ({ default: modulo.MockPayDemo })))
 import { useAuthStore } from './store'
 import type { Role } from './types'
 
@@ -76,6 +78,7 @@ function Tienda() {
 export default function App() {
   return <Routes><Route element={<Layout />}>
     <Route index element={<Tienda />} />
+    <Route path="demo/mockpay" element={<MockPayDemo />} />
     <Route element={<Visitante />}>
       <Route path="login" element={<AuthForm key="login" modo="login" />} />
       <Route path="registro" element={<AuthForm key="registro" modo="registro" />} />
