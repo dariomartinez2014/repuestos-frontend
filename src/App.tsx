@@ -10,6 +10,7 @@ const PedidosPage = lazy(() => import('./Operacion').then(modulo => ({ default: 
 const VentaPage = lazy(() => import('./Operacion').then(modulo => ({ default: modulo.VentaPage })))
 // Pantalla de prueba independiente del checkout de los pedidos reales.
 const MockPayDemo = lazy(() => import('./MockPayDemo').then(modulo => ({ default: modulo.MockPayDemo })))
+const MockPayDemoPedido = lazy(() => import('./MockPayDemo').then(modulo => ({ default: modulo.MockPayDemoPedido })))
 import { useAuthStore } from './store'
 import type { Role } from './types'
 
@@ -93,6 +94,8 @@ export default function App() {
     <Route element={<Protegida roles={['CUSTOMER']} />}>
       <Route path="carrito" element={<CarritoPage />} />
       <Route path="pago/:id" element={<PagoPage />} />
+      {/* La prueba de un pedido concreto consulta sus datos con la sesión del cliente. */}
+      <Route path="pago/:id/demo" element={<MockPayDemoPedido />} />
     </Route>
     <Route element={<Protegida roles={['ADMIN', 'CASHIER']} />}>
       <Route path="panel" element={<Panel />} />

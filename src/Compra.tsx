@@ -113,12 +113,21 @@ export function PagoPage() {
       <p>Total: Q {pedido.data.total}</p>
       <p>Estado: {pedido.data.status}</p>
       {["PAID", "IN_TRANSIT", "DELIVERED", "COMPLETED"].includes(pedido.data.status) && <p role="status">Pago confirmado</p>}
-      {pedido.data.status === 'PENDING' && <div className="flex flex-wrap gap-3">
-        {enlacePago
-          ? <a href={enlacePago} target="_blank" rel="noreferrer">Abrir MockPay</a>
-          : <button disabled={ocupado} onClick={() => operar(true)}>Pagar con MockPay</button>}
-        <button disabled={ocupado} onClick={() => operar(false)}>Verificar pago</button>
-      </div>}
+      {pedido.data.status === 'PENDING' && <>
+        {/* La ruta de prueba conserva la referencia de compra y registra el resultado aparte. */}
+        {pedido.data.cartId && <aside className="max-w-lg space-y-3 rounded-lg border border-tienda-borde bg-tienda-tarjeta p-4">
+          <p className="text-sm text-tienda-secundario">Para una prueba con el mismo código y monto, usa el simulador. El resultado se guarda en este navegador.</p>
+          <Link className="inline-flex rounded-full bg-tienda-accion px-4 py-2 font-semibold text-tienda-cabecera no-underline hover:bg-tienda-hover" to={`/pago/${pedido.data.id}/demo`}>
+            Simular pago de este pedido
+          </Link>
+        </aside>}
+        <div className="flex flex-wrap gap-3">
+          {enlacePago
+            ? <a href={enlacePago} target="_blank" rel="noreferrer">Abrir MockPay</a>
+            : <button disabled={ocupado} onClick={() => operar(true)}>Pagar con MockPay</button>}
+          <button disabled={ocupado} onClick={() => operar(false)}>Verificar pago</button>
+        </div>
+      </>}
     </>}
     <Link to="/">Volver a la tienda</Link>
   </section>

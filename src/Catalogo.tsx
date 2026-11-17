@@ -1,5 +1,6 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { FotoProducto } from './FotoProducto'
 import { useApi } from './hooks/useApi'
 import { mensajeError } from './lib/errores'
 import { productos, type ProductoDTO } from './services/productos'
@@ -92,6 +93,7 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
     {/* CUADRÍCULA: gap-5 separa tarjetas y lg:grid-cols-3 define tres columnas en escritorio. */}
     <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       {lista.data?.data.map(p => <article key={p.id} className="flex min-w-0 flex-col gap-3 rounded-xl border border-tienda-borde bg-tienda-tarjeta p-5 shadow-sm transition-shadow hover:shadow-md">
+        {!interno && <FotoProducto producto={p} />}
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-tienda-secundario">
           <span className="font-mono font-semibold">{p.sku}</span>
           <span>{p.category.name}</span>
