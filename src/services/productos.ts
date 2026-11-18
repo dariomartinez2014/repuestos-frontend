@@ -1,5 +1,5 @@
 import { api } from '../lib/axios'
-import type { Categoria, Pagina, Producto, ProductoInterno } from '../types'
+import type { AjusteInventario, Categoria, Pagina, Producto, ProductoInterno } from '../types'
 export type ProductoDTO = Pick<Producto, 'sku' | 'name' | 'description'> & { categoryId: number; salePrice: number; acquisitionCost: number }
 interface EdicionFotos {
   reemplazarImagenes?: boolean
@@ -29,4 +29,8 @@ export const productos = {
   },
   retirar: (id: number) => api.delete(`/products/${id}`),
   ajustar: (id: number, delta: number, reason: string) => api.post(`/products/${id}/stock`, { delta, reason }),
+  // Axios agrega el token de la sesión. La API verifica el rol de administrador.
+  async historialAjustes(id: number, page: number, signal: AbortSignal) {
+    return (await api.get<Pagina<AjusteInventario>>(`/products/${id}/stock`, { params: { page, limit: 10 }, signal })).data
+  },
 }

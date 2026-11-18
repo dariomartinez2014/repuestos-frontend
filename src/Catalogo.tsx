@@ -2,6 +2,7 @@ import { useCallback, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CategoriaForm } from './CategoriaForm'
 import { FotoProducto, fotosDelProducto } from './FotoProducto'
+import { HistorialAjustes } from './HistorialAjustes'
 import { useApi } from './hooks/useApi'
 import { mensajeError } from './lib/errores'
 import { productos, type ProductoDTO } from './services/productos'
@@ -29,6 +30,7 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
   const pagina = paginacion.search === search ? paginacion.pagina : 1
   const setPagina = (numero: number) => setPaginacion({ search, pagina: numero })
   const [edicion, setEdicion] = useState<ProductoInterno>()
+  const [historialId, setHistorialId] = useState<number>()
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState('')
   const categorias = useApi(productos.categorias)
@@ -106,6 +108,12 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
       producto={edicion}
       categorias={categorias.data ?? []}
       alGuardar={() => { setEdicion(undefined); lista.recargar() }}
+      alAjustar={id => {
+        // Al actualizar la lista se vuelve a consultar el historial desde la primera página.
+        setHistorialId(id)
+        setEdicion(undefined)
+        lista.recargar()
+      }}
       cancelar={() => setEdicion(undefined)}
     />}
     {error && <p role="alert">{error}</p>}
@@ -131,7 +139,11 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setEdicion(p)}>Editar</button>
             <button disabled={ocupado || !p.active} onClick={() => retirar(p.id)}>Retirar</button>
+            <button type="button" aria-expanded={historialId === p.id} onClick={() => setHistorialId(historialId === p.id ? undefined : p.id)}>
+              {historialId === p.id ? 'Cerrar historial' : 'Ver historial de ajustes'}
+            </button>
           </div>
+          {historialId === p.id && <HistorialAjustes productoId={p.id} nombre={p.name} />}
         </>
           : (!sesion || sesion.usuario.role === 'CUSTOMER') && <form onSubmit={event => agregar(event, p)}>
             <fieldset disabled={ocupado || p.stock < 1} className="flex min-w-0 items-end gap-3">
@@ -152,10 +164,11 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
   </section>
 }
 
-function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
+function ProductoForm({ producto, categorias, alGuardar, alAjustar, cancelar }: {
   producto?: ProductoInterno
   categorias: Categoria[]
   alGuardar: () => void
+  alAjustar: (id: number) => void
   cancelar: () => void
 }) {
   const [error, setError] = useState('')
@@ -204,7 +217,10 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
     const f = new FormData(event.currentTarget)
     setError('')
     setGuardando(true)
-    try { await productos.ajustar(producto.id, Number(f.get('delta')), String(f.get('reason'))); alGuardar() }
+    try {
+      await productos.ajustar(producto.id, Number(f.get('delta')), String(f.get('reason')))
+      alAjustar(producto.id)
+    }
     catch (err) { setError(mensajeError(err)) }
     finally { setGuardando(false) }
   }

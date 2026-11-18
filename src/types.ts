@@ -3,6 +3,14 @@ export interface Usuario { id: number; name: string; email: string; role: Role }
 export interface Categoria { id: number; name: string }
 export interface Producto { id: number; sku: string; name: string; description: string | null; salePrice: string; stock: number; category: Categoria; active: boolean; images?: { id: number }[]; referenceImageSku?: string | null; primaryImageId?: number | null }
 export interface ProductoInterno extends Producto { acquisitionCost: string }
+// Campos de un ajuste manual devuelto por la API de inventario.
+export interface AjusteInventario {
+  id: number
+  quantityDelta: number
+  reason: string | null
+  actor: Pick<Usuario, 'name'>
+  createdAt: string
+}
 export interface Pagina<T> { data: T[]; total: number; page: number; limit: number }
 export interface Carrito { id: number; status: string; items: { productId: number; quantity: number; product: Producto }[] }
 export interface Pedido {
