@@ -1,4 +1,4 @@
-import { Link, Navigate, Outlet, Route, Routes, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, Outlet, Route, Routes, useMatch, useSearchParams } from 'react-router-dom'
 import { AuthForm } from './AuthForm'
 import { BuscadorCatalogo } from './BuscadorCatalogo'
 import { Catalogo } from './Catalogo'
@@ -26,6 +26,8 @@ function Visitante() {
   return sesion ? <Navigate to={sesion.usuario.role === 'CUSTOMER' ? '/' : '/panel'} replace /> : <Outlet />
 }
 function Layout() {
+  // En mostrador se usa el buscador de la venta para permanecer en el panel.
+  const ventaMostrador = useMatch('/panel/venta')
   const sesion = useAuthStore(s => s.sesion)
   const salir = useAuthStore(s => s.salir)
   return <>
@@ -33,7 +35,7 @@ function Layout() {
     <header className="bg-tienda-cabecera text-white">
       <nav className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-4 sm:px-6" aria-label="Navegación principal">
         <Link to="/" className="text-2xl font-extrabold tracking-tight text-white no-underline">Repuestos<span className="text-tienda-accion">.</span></Link>
-        <BuscadorCatalogo />
+        {!ventaMostrador && <BuscadorCatalogo />}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           {sesion?.usuario.role === 'CUSTOMER' && <Link className="font-semibold no-underline hover:underline" to="/carrito">Carrito</Link>}
           {sesion && <Link to="/pedidos">Pedidos</Link>}

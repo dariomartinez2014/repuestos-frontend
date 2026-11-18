@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { useApi } from './hooks/useApi'
 import { mensajeError } from './lib/errores'
@@ -83,8 +83,21 @@ export function CajaPage() {
 
 export function VentaPage({ social = false }: { social?: boolean }) {
   const cajas = useApi(operacion.cajas)
-  const [pagina, setPagina] = useState(1)
-  const pedirProductos = useCallback((signal: AbortSignal) => productos.listar<Producto>(false, pagina, undefined, signal), [pagina])
+  const [busqueda, setBusqueda] = useState('')
+  const [{ filtro, pagina }, setConsulta] = useState({ filtro: '', pagina: 1 })
+  const texto = busqueda.trim()
+  const esperandoBusqueda = texto !== filtro
+
+  // Espera una pausa al escribir y vuelve a la primera página al cambiar el filtro.
+  useEffect(() => {
+    if (texto === filtro) return
+    const espera = window.setTimeout(() => setConsulta({ filtro: texto, pagina: 1 }), 350)
+    return () => window.clearTimeout(espera)
+  }, [texto, filtro])
+
+  // La API busca por nombre y código en todo el catálogo, también fuera de la página actual.
+  const pedirProductos = useCallback((signal: AbortSignal) =>
+    productos.listar<Producto>(false, pagina, undefined, signal, filtro || undefined), [pagina, filtro])
   const catalogo = useApi(pedirProductos, true)
   // Cada canal conserva su carrito al navegar por el panel.
   const carrito = useAuthStore(s => s.carritosStaff[social ? 'SOCIAL' : 'POS'])
@@ -142,9 +155,22 @@ export function VentaPage({ social = false }: { social?: boolean }) {
       <p>Total: Q {pedido.total}</p>
       <button onClick={() => setPedido(undefined)}>Nueva venta</button>
     </article> : <>
-      <EstadoCarga {...catalogo} />
+      {!social && <label className="max-w-md font-medium">Buscar repuesto en la venta
+        <input
+          type="search"
+          value={busqueda}
+          onChange={event => setBusqueda(event.target.value)}
+          placeholder="Escribe un nombre o código"
+          maxLength={100}
+          className="bg-white"
+        />
+      </label>}
+      {esperandoBusqueda ? <p role="status">Buscando repuestos…</p> : <EstadoCarga {...catalogo} />}
+      {!esperandoBusqueda && catalogo.data?.total === 0 && <p role="status">
+        {filtro ? 'No se encontraron repuestos con ese nombre o código.' : 'No hay repuestos disponibles.'}
+      </p>}
       <ul className="grid gap-3 sm:grid-cols-2">
-        {catalogo.data?.data.map(producto => {
+        {!esperandoBusqueda && catalogo.data?.data.map(producto => {
           const enCarrito = venta.data?.items.find(item => item.productId === producto.id)?.quantity ?? 0
           // La API acepta hasta 10 000 unidades por línea y comprueba el stock al cobrar.
           const maximo = Math.max(0, Math.min(producto.stock, 10_000) - enCarrito)
@@ -164,9 +190,9 @@ export function VentaPage({ social = false }: { social?: boolean }) {
           </li>
         })}
       </ul>
-      {catalogo.data && <nav className="flex gap-3" aria-label="Páginas de productos">
-        <button disabled={pagina === 1} onClick={() => setPagina(pagina - 1)}>Anterior</button>
-        <button disabled={pagina * catalogo.data.limit >= catalogo.data.total} onClick={() => setPagina(pagina + 1)}>Siguiente</button>
+      {!esperandoBusqueda && catalogo.data && catalogo.data.total > catalogo.data.limit && <nav className="flex gap-3" aria-label="Páginas de productos">
+        <button disabled={pagina === 1} onClick={() => setConsulta({ filtro, pagina: pagina - 1 })}>Anterior</button>
+        <button disabled={pagina * catalogo.data.limit >= catalogo.data.total} onClick={() => setConsulta({ filtro, pagina: pagina + 1 })}>Siguiente</button>
       </nav>}
       {carrito && <Referencia id={carrito} />}
       {carrito && <EstadoCarga {...venta} />}
