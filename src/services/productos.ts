@@ -7,15 +7,17 @@ export const productos = {
   },
   async categorias(signal: AbortSignal) { return (await api.get<Categoria[]>('/categories', { signal })).data },
   crearCategoria: (name: string) => api.post<Categoria>('/categories', { name }),
-  guardar(datos: ProductoDTO, id?: number, imagenes: File[] = []) {
-    if (id) return api.patch<ProductoInterno>(`/products/${id}`, datos)
-    if (!imagenes.length) return api.post<ProductoInterno>('/products', datos)
-
-    // Axios y el navegador agregan el separador de multipart al enviar FormData.
-    const formulario = new FormData()
-    Object.entries(datos).forEach(([campo, valor]) => formulario.append(campo, String(valor ?? '')))
-    imagenes.forEach(imagen => formulario.append('imagenes', imagen))
-    return api.post<ProductoInterno>('/products', formulario)
+  guardar(datos: ProductoDTO, id?: number, imagenes: File[] = [], reemplazarImagenes = false) {
+    // Si no hay archivos, se conserva el envío de datos como JSON.
+    let cuerpo: ProductoDTO | FormData = datos
+    if (imagenes.length) {
+      const formulario = new FormData()
+      Object.entries(datos).forEach(([campo, valor]) => formulario.append(campo, String(valor ?? '')))
+      imagenes.forEach(imagen => formulario.append('imagenes', imagen))
+      if (reemplazarImagenes) formulario.append('reemplazarImagenes', 'true')
+      cuerpo = formulario
+    }
+    return id ? api.patch<ProductoInterno>(`/products/${id}`, cuerpo) : api.post<ProductoInterno>('/products', cuerpo)
   },
   retirar: (id: number) => api.delete(`/products/${id}`),
   ajustar: (id: number, delta: number, reason: string) => api.post(`/products/${id}/stock`, { delta, reason }),

@@ -1,7 +1,7 @@
 import { useCallback, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CategoriaForm } from './CategoriaForm'
-import { FotoProducto } from './FotoProducto'
+import { FotoProducto, fotosDelProducto } from './FotoProducto'
 import { useApi } from './hooks/useApi'
 import { mensajeError } from './lib/errores'
 import { productos, type ProductoDTO } from './services/productos'
@@ -160,14 +160,20 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
       description: String(f.get('description')).trim(), acquisitionCost: Number(f.get('cost')), salePrice: Number(f.get('price')),
     }
     // El selector admite varios archivos y el backend vuelve a validar cada uno.
-    const imagenes = f.getAll('imagenes').filter((archivo): archivo is File => archivo instanceof File && archivo.size > 0)
-    if (imagenes.length > 5 || imagenes.some(imagen => imagen.size > 5 * 1024 * 1024)) {
+    const imagenes = f.getAll('imagenes').filter((archivo): archivo is File => archivo instanceof File && archivo.name !== '')
+    const reemplazarImagenes = f.get('modoImagenes') === 'reemplazar'
+    const fotosActuales = producto && !reemplazarImagenes ? fotosDelProducto(producto).length : 0
+    if (reemplazarImagenes && !imagenes.length) {
+      setError('Selecciona al menos una imagen para reemplazar las actuales.')
+      return
+    }
+    if (fotosActuales + imagenes.length > 5 || imagenes.some(imagen => imagen.size > 5 * 1024 * 1024)) {
       setError('Elige hasta 5 imágenes de 5 MB como máximo cada una.')
       return
     }
     setError('')
     setGuardando(true)
-    try { await productos.guardar(datos, producto?.id, imagenes); form.reset(); alGuardar() }
+    try { await productos.guardar(datos, producto?.id, imagenes, reemplazarImagenes); form.reset(); alGuardar() }
     catch (err) { setError(mensajeError(err)) }
     finally { setGuardando(false) }
   }
@@ -190,10 +196,21 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
       <label>Descripción<input name="description" maxLength={2000} defaultValue={producto?.description ?? ''} /></label>
       <label>Costo<input name="cost" type="number" min="0" step=".01" required defaultValue={producto?.acquisitionCost} /></label>
       <label>Precio<input name="price" type="number" min=".01" step=".01" required defaultValue={producto?.salePrice} /></label>
-      {!producto && <label className="sm:col-span-2">Imágenes del producto
-        <input name="imagenes" type="file" accept="image/jpeg,image/png,image/webp" multiple />
-        <span className="text-xs text-tienda-secundario">Hasta 5 imágenes JPG, PNG o WebP. Máximo 5 MB por imagen.</span>
+      {/* Editar permite conservar, agregar o reemplazar las fotos con el mismo formulario. */}
+      {producto && fotosDelProducto(producto).length > 0 && <div className="space-y-2 sm:col-span-2">
+        <p className="text-sm font-semibold">Fotos actuales</p>
+        <div className="max-w-52"><FotoProducto producto={producto} /></div>
+      </div>}
+      {producto && <label className="sm:col-span-2">Al seleccionar imágenes nuevas
+        <select name="modoImagenes" disabled={guardando} defaultValue="agregar">
+          <option value="agregar">Agregar a las imágenes actuales</option>
+          <option value="reemplazar">Reemplazar todas las imágenes</option>
+        </select>
       </label>}
+      <label className="sm:col-span-2">Imágenes del producto
+        <input name="imagenes" type="file" accept="image/jpeg,image/png,image/webp" disabled={guardando} multiple />
+        <span className="text-xs text-tienda-secundario">Hasta 5 fotos por producto. Formatos JPG, PNG o WebP, de hasta 5 MB cada una.</span>
+      </label>
       <button disabled={guardando || !categorias.length}>{guardando ? 'Guardando…' : 'Guardar producto'}</button>
       {producto && <button type="button" onClick={cancelar}>Cancelar edición</button>}
     </form>
