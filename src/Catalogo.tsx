@@ -11,6 +11,17 @@ import type { Categoria, Producto, ProductoInterno } from './types'
 
 const formatoPrecio = new Intl.NumberFormat('es-GT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+// Con 1 a 3 unidades se avisa que quedan pocas. Cero conserva el estado Agotado.
+const LIMITE_STOCK_BAJO = 3
+
+function Disponibilidad({ stock }: { stock: number }) {
+  if (stock === 0) return <p className="text-sm font-medium text-rose-700">Agotado</p>
+  if (stock <= LIMITE_STOCK_BAJO) return <p className="rounded-full bg-amber-100 px-2.5 py-1 text-sm font-semibold text-amber-900">
+    Stock bajo · {stock === 1 ? 'Queda 1 unidad' : `Quedan ${stock} unidades`}
+  </p>
+  return <p className="text-sm font-medium text-emerald-700">{stock} disponibles</p>
+}
+
 export function Catalogo({ interno = false, search = '' }: { interno?: boolean; search?: string }) {
   const [categoria, setCategoria] = useState('')
   // Al cambiar el texto, se busca desde la página 1 y se conserva la categoría.
@@ -113,9 +124,7 @@ export function Catalogo({ interno = false, search = '' }: { interno?: boolean; 
         {p.description && <p className="mb-2 text-sm leading-relaxed text-tienda-secundario">{p.description}</p>}
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-tienda-borde pt-3">
           <p className="text-2xl font-bold tracking-tight tabular-nums">Q {formatoPrecio.format(Number(p.salePrice))}</p>
-          <p className={p.stock > 0 ? 'text-sm font-medium text-emerald-700' : 'text-sm font-medium text-rose-700'}>
-            {p.stock > 0 ? `${p.stock} disponibles` : 'Agotado'}
-          </p>
+          <Disponibilidad stock={p.stock} />
         </div>
         {interno ? <>
           <p>Costo Q {p.acquisitionCost} · {p.active ? 'Activo' : 'Retirado'}</p>
@@ -151,6 +160,13 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
 }) {
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [modoFotos, setModoFotos] = useState('agregar')
+  const [fotosQuitadas, setFotosQuitadas] = useState<number[]>([])
+  const [principal, setPrincipal] = useState<number>()
+  const fotos = producto ? fotosDelProducto(producto) : []
+  const restantes = fotos.filter(foto => !fotosQuitadas.includes(foto.id))
+  const principalVisible = restantes.find(foto => foto.id === principal)?.id ?? restantes[0]?.id
+
   async function guardar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = event.currentTarget
@@ -161,8 +177,8 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
     }
     // El selector admite varios archivos y el backend vuelve a validar cada uno.
     const imagenes = f.getAll('imagenes').filter((archivo): archivo is File => archivo instanceof File && archivo.name !== '')
-    const reemplazarImagenes = f.get('modoImagenes') === 'reemplazar'
-    const fotosActuales = producto && !reemplazarImagenes ? fotosDelProducto(producto).length : 0
+    const reemplazarImagenes = modoFotos === 'reemplazar'
+    const fotosActuales = reemplazarImagenes ? 0 : restantes.length
     if (reemplazarImagenes && !imagenes.length) {
       setError('Selecciona al menos una imagen para reemplazar las actuales.')
       return
@@ -173,7 +189,12 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
     }
     setError('')
     setGuardando(true)
-    try { await productos.guardar(datos, producto?.id, imagenes, reemplazarImagenes); form.reset(); alGuardar() }
+    // Los cambios se confirman al guardar. Cancelar descarta las selecciones.
+    const edicionFotos = reemplazarImagenes ? { reemplazarImagenes } : {
+      quitarImagenes: fotosQuitadas.length ? fotosQuitadas : undefined,
+      imagenPrincipal: restantes.some(foto => foto.id === principal) ? principal : undefined,
+    }
+    try { await productos.guardar(datos, producto?.id, imagenes, edicionFotos); form.reset(); alGuardar() }
     catch (err) { setError(mensajeError(err)) }
     finally { setGuardando(false) }
   }
@@ -196,13 +217,28 @@ function ProductoForm({ producto, categorias, alGuardar, cancelar }: {
       <label>Descripción<input name="description" maxLength={2000} defaultValue={producto?.description ?? ''} /></label>
       <label>Costo<input name="cost" type="number" min="0" step=".01" required defaultValue={producto?.acquisitionCost} /></label>
       <label>Precio<input name="price" type="number" min=".01" step=".01" required defaultValue={producto?.salePrice} /></label>
-      {/* Editar permite conservar, agregar o reemplazar las fotos con el mismo formulario. */}
-      {producto && fotosDelProducto(producto).length > 0 && <div className="space-y-2 sm:col-span-2">
-        <p className="text-sm font-semibold">Fotos actuales</p>
-        <div className="max-w-52"><FotoProducto producto={producto} /></div>
-      </div>}
+      {/* La galería permite marcar cambios antes de guardar el formulario. */}
+      {fotos.length > 0 && modoFotos !== 'reemplazar' && <fieldset className="space-y-2 sm:col-span-2" disabled={guardando}>
+        <legend className="text-sm font-semibold">Fotos actuales</legend>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          {fotos.map((foto, indice) => {
+            const quitar = fotosQuitadas.includes(foto.id)
+            const titulo = foto.referencia ? 'Foto de referencia' : `Foto ${indice + 1}`
+            return <div className="space-y-2 rounded-lg border border-tienda-borde p-2" key={foto.id}>
+              <img src={foto.src} alt={titulo} className="aspect-[3/2] w-full object-contain" />
+              {quitar ? <p className="text-sm text-rose-700">Se quitará al guardar</p> : <label className="flex items-center gap-2 text-sm">
+                <input type="radio" name="fotoPrincipal" className="w-auto" checked={principalVisible === foto.id} onChange={() => setPrincipal(foto.id)} />
+                Principal <span className="sr-only">{titulo}</span>
+              </label>}
+              <button type="button" aria-label={`${quitar ? 'Conservar' : 'Quitar'} ${titulo.toLowerCase()}`} onClick={() => setFotosQuitadas(actuales =>
+                quitar ? actuales.filter(id => id !== foto.id) : [...actuales, foto.id]
+              )}>{quitar ? 'Conservar foto' : 'Quitar foto'}</button>
+            </div>
+          })}
+        </div>
+      </fieldset>}
       {producto && <label className="sm:col-span-2">Al seleccionar imágenes nuevas
-        <select name="modoImagenes" disabled={guardando} defaultValue="agregar">
+        <select disabled={guardando} value={modoFotos} onChange={event => setModoFotos(event.target.value)}>
           <option value="agregar">Agregar a las imágenes actuales</option>
           <option value="reemplazar">Reemplazar todas las imágenes</option>
         </select>

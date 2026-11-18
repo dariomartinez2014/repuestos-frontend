@@ -1,7 +1,7 @@
 export type Role = 'ADMIN' | 'CASHIER' | 'CUSTOMER'
 export interface Usuario { id: number; name: string; email: string; role: Role }
 export interface Categoria { id: number; name: string }
-export interface Producto { id: number; sku: string; name: string; description: string | null; salePrice: string; stock: number; category: Categoria; active: boolean; images?: { id: number }[]; referenceImageSku?: string | null }
+export interface Producto { id: number; sku: string; name: string; description: string | null; salePrice: string; stock: number; category: Categoria; active: boolean; images?: { id: number }[]; referenceImageSku?: string | null; primaryImageId?: number | null }
 export interface ProductoInterno extends Producto { acquisitionCost: string }
 export interface Pagina<T> { data: T[]; total: number; page: number; limit: number }
 export interface Carrito { id: number; status: string; items: { productId: number; quantity: number; product: Producto }[] }

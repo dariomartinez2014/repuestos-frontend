@@ -17,7 +17,7 @@ const fotosPorSku: Partial<Record<string, string>> = {
   'LUB-005': 'lub-005.webp',
 }
 
-type ProductoConFotos = Pick<Producto, 'id' | 'sku' | 'name' | 'images' | 'referenceImageSku'>
+type ProductoConFotos = Pick<Producto, 'id' | 'sku' | 'name' | 'images' | 'referenceImageSku' | 'primaryImageId'>
 
 export function fotosDelProducto(producto: ProductoConFotos) {
   // La referencia conserva su clave aunque el administrador edite el SKU.
@@ -26,24 +26,31 @@ export function fotosDelProducto(producto: ProductoConFotos) {
     : producto.referenceImageSku
   const referencia = clave ? fotosPorSku[clave] : undefined
   const base = api.defaults.baseURL?.replace(/\/$/, '') ?? ''
-  const subidas = producto.images?.map(({ id }) => ({
-    src: `${base}/products/${producto.id}/images/${id}`,
-    referencia: false,
+  const fotos = producto.images?.map(({ id }) => ({
+    id, src: `${base}/products/${producto.id}/images/${id}`, referencia: false,
   })) ?? []
-  return referencia ? [{ src: `/productos/${referencia}`, referencia: true }, ...subidas] : subidas
+  // El identificador 0 representa la foto original guardada en public.
+  if (referencia) fotos.unshift({ id: 0, src: `/productos/${referencia}`, referencia: true })
+  const principal = fotos.findIndex(foto => foto.id === producto.primaryImageId)
+  if (principal > 0) fotos.unshift(...fotos.splice(principal, 1))
+  return fotos
 }
 
 export function FotoProducto({ producto }: { producto: ProductoConFotos }) {
-  const [indice, setIndice] = useState(0)
   const fotos = fotosDelProducto(producto)
   if (!fotos.length) return null
+  return <Galeria key={fotos.map(foto => foto.id).join(',')} nombre={producto.name} fotos={fotos} />
+}
+
+function Galeria({ nombre, fotos }: { nombre: string; fotos: ReturnType<typeof fotosDelProducto> }) {
+  const [indice, setIndice] = useState(0)
   const actual = indice % fotos.length
   const foto = fotos[actual]
 
   return <figure className="overflow-hidden rounded-lg border border-tienda-borde bg-tienda-fondo">
     <img
       src={foto.src}
-      alt={producto.name}
+      alt={nombre}
       loading="lazy"
       decoding="async"
       className="aspect-[3/2] w-full object-contain"
