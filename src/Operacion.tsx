@@ -225,6 +225,7 @@ const estados: Record<string, string> = {
 
 const fechaVenta = new Intl.DateTimeFormat('es-GT', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Guatemala' })
 const formasPago = { CASH: 'Efectivo', CARD: 'Tarjeta', TRANSFER: 'Transferencia / QR' }
+const importeVenta = new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' })
 
 export function PedidosPage({ soloVentas = false }: { soloVentas?: boolean }) {
   const rol = useAuthStore(s => s.sesion?.usuario.role)
@@ -236,7 +237,9 @@ export function PedidosPage({ soloVentas = false }: { soloVentas?: boolean }) {
   const pedir = useCallback((signal: AbortSignal) => soloVentas
     ? operacion.pedidos(pagina, 'COMPLETED', fecha, signal, 'POS')
     : operacion.pedidos(pagina, estado, fecha, signal), [pagina, estado, fecha, soloVentas])
-  const pedidos = useApi(pedir)
+  // También actualiza el resumen cuando se vuelve de otra pestaña del sistema.
+  const pedidos = useApi(pedir, soloVentas)
+  const resumen = pedidos.data?.resumen
   const { ocupado, error, ejecutar } = useOperacion()
   function cambiar(accion: () => Promise<unknown>) {
     void ejecutar(async () => { await accion(); pedidos.recargar() })
@@ -250,6 +253,19 @@ export function PedidosPage({ soloVentas = false }: { soloVentas?: boolean }) {
     </select></label>}
     <label className="max-w-sm">Fecha<input type="date" value={fecha} onChange={event => { setFecha(event.target.value); setPagina(1) }} /></label>
     <EstadoCarga {...pedidos} />
+    {soloVentas && resumen && <section aria-label="Resumen de ventas" className="space-y-3 rounded-xl border border-tienda-borde bg-white p-5">
+      <h2 className="font-bold">Resumen de ventas{fecha ? ' de la fecha seleccionada' : ' de todas las fechas'}</h2>
+      <p className="text-sm text-tienda-secundario">{rol === 'CASHIER' ? 'Tus ventas de mostrador completadas.' : 'Todas las ventas de mostrador completadas.'}</p>
+      {/* La API suma todos los pagos del filtro, aunque el historial tenga varias páginas. */}
+      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <div><dt className="text-sm text-tienda-secundario">Ventas realizadas</dt><dd className="text-xl font-bold tabular-nums">{resumen.ventas}</dd></div>
+        <div><dt className="text-sm text-tienda-secundario">Total cobrado</dt><dd className="text-xl font-bold tabular-nums">{importeVenta.format(Number(resumen.totalCobrado))}</dd></div>
+        {Object.entries(formasPago).map(([metodo, nombre]) => <div key={metodo}>
+          <dt className="text-sm text-tienda-secundario">{nombre}</dt>
+          <dd className="text-xl font-bold tabular-nums">{importeVenta.format(Number(resumen.porMetodo[metodo as Metodo]))}</dd>
+        </div>)}
+      </dl>
+    </section>}
     {error && <p role="alert">{error}</p>}
     {pedidos.data?.data.length === 0 && <p>{soloVentas ? 'No hay ventas para esta fecha.' : 'No hay pedidos para este filtro.'}</p>}
     {pedidos.data?.data.map(pedido => <article key={pedido.id} className="space-y-3 rounded-xl bg-white p-5">
